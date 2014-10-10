@@ -5,44 +5,281 @@ import matplotlib.pyplot as plt
 import matplotlib
 import astropy.io.fits as fits
 import Tkinter as tk
+import ttk
 import tkMessageBox
 import tkFileDialog
 import logging
-#from Tkinter import N,E,S,W
-import logging
 _log = logging.getLogger('webbpsf')
-
-
-try:
-    import ttk
-    _use_ttk = True
-except:
-    _use_ttk = False
-
-
 
 try:
     import pysynphot
-    _HAS_PYSYNPHOT=True
+    _HAS_PYSYNPHOT_INSTALLED = True
+    if os.getenv('PYSYN_CDBS') is not None:
+        _HAS_PYSYNPHOT_DATA = True
+    else:
+        _HAS_PYSYNPHOT_DATA = False
 except:
-    _HAS_PYSYNPHOT=False
-
+    _HAS_PYSYNPHOT_INSTALLED = False
+    _HAS_PYSYNPHOT_DATA = False
 
 import poppy
 import webbpsf_core
 
-class WebbPSF_GUI(object):
-    """ A GUI for the PSF Simulator 
+class PSFGenerationGUI(object):
+    """Base Class for a PSF generation GUI using Tkinter with TTK native widgets"""
+    def __init__(self):
+        self.advanced_options = {
+            'parity': 'any',
+            'force_coron': False,
+            'no_sam': False,
+            'psf_vmin': 1e-8,
+            'psf_vmax': 1.0,
+            'psf_scale': 'log',
+            'psf_cmap_str': 'Jet (blue to red)',
+            'psf_normalize': 'Total',
+            'psf_cmap': matplotlib.cm.jet
+        }
+
+    def _add_labeled_dropdown(self, name, root,label="Entry:", values=None, default=None, width=5, position=(0,0), **kwargs):
+        "convenient wrapper for adding a Combobox"
+
+        ttk.Label(root, text=label).grid(row=position[0], column=position[1], sticky='W')
+
+        self.vars[name] = tk.StringVar()
+        self.widgets[name] = ttk.Combobox(root, textvariable=self.vars[name], width=width, state='readonly')
+        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
+        self.widgets[name]['values'] = values
+
+        if default is None:
+            default=values[0]
+        self.widgets[name].set(default)
+
+
+    def _add_labeled_entry(self, name, root,label="Entry:", value="", width=5, position=(0,0), postlabel=None, **kwargs):
+        "convenient wrapper for adding an Entry"
+        ttk.Label(root, text=label).grid(row=position[0], column=position[1], sticky='W')
+
+        self.vars[name] = tk.StringVar()
+        self.widgets[name] = ttk.Entry(root, textvariable=self.vars[name], width=width)
+        self.widgets[name].insert(0,value)
+        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
+
+        if postlabel is not None:
+                ttk.Label(root, text=postlabel).grid(row=position[0], column=position[1]+2, sticky='W')
+    def quit(self):
+        "Quit the GUI"
+        if tkMessageBox.askyesno(message='Are you sure you want to quit?', icon='question', title='Confirm quit') :
+            self.root.destroy()
+    def ev_SaveAs(self):
+        "Event handler for Save As of output PSFs"
+        filename = tkFileDialog.asksaveasfilename(
+                initialfile='PSF_%s_%s.fits' %(self.iname, self.filter),
+                filetypes=[('FITS', '.fits')],
+                defaultextension='.fits',
+                parent=self.root)
+        if len(filename) > 0:
+            self.PSF_HDUlist.writeto(filename)
+            print "Saved to %s" % filename
+    def ev_options(self):
+        d = WebbPSFOptionsDialog(self.root, input_options = self.advanced_options)
+        if d.results is not None: # none means the user hit 'cancel'
+            self.advanced_options = d.results
+
+    def ev_plotspectrum(self):
+        "Event handler for Plot Spectrum "
+        self._updateFromGUI()
+
+        #sptype = self.widgets['SpType'].get()
+        #iname = self.widgets[self.widgets['tabset'].select()]
+        print "Spectral type is "+self.sptype
+        print "Selected instrument tab is "+self.iname
+        #if iname != 'TFI':
+            #filter = self.widgets[self.iname+"_filter"].get()
+        print "Selected instrument filter is "+self.filter
+
+
+        plt.clf()
+
+        ax1 = plt.subplot(311)
+        spectrum = poppy.specFromSpectralType(self.sptype)
+        synplot(spectrum)
+        ax1.set_ybound(1e-6, 1e8) # hard coded for now
+        ax1.yaxis.set_major_locator(matplotlib.ticker.LogLocator(base=1000))
+        legend_font = matplotlib.font_manager.FontProperties(size=10)
+        ax1.legend(loc='lower right', prop=legend_font)
+
+
+        ax2 = plt.subplot(312, sharex=ax1)
+        ax2.set_ybound(0,1.1)
+        #try:
+        band = self.inst._getSynphotBandpass(self.inst.filter) #pysynphot.ObsBandpass(obsname)
+        band.name = "%s %s" % (self.iname, self.inst.filter)
+        synplot(band) #, **kwargs)
+        legend_font = matplotlib.font_manager.FontProperties(size=10)
+        plt.legend(loc='lower right', prop=legend_font)
+
+        ax2.set_ybound(0,1.1)
+
+
+        ax3 = plt.subplot(313, sharex=ax1)
+        if self.nlambda is None:
+            # Automatically determine number of appropriate wavelengths.
+            # Make selection based on filter configuration file
+            try:
+                #if self.inst.name=='TFI':    # filter names are irrelevant for TFI.
+                    #nlambda=5
+                #else:
+                    #filt_width = self.filter[-1]
+                    #lookup_table = {'NIRCam': {'2': 10, 'W':20,'M':3,'N':1},
+                                    #'NIRSpec':{'W':5,'M':3,'N':1},
+                                    #'MIRI':{'W':5,'M':3,'N':1},
+                                    #'FGS':{'W':5,'M':3,'N':1}}
+
+                    #nlambda = lookup_table[self.name][filt_width]
+                nlambda = self.inst._filter_nlambda_default[self.filter]
+            except:
+                nlambda=10
+        else:
+            nlambda = self.nlambda
+        ax1.set_xbound(0.1, 100)
+        plt.draw()
+        waves, weights = self.inst._getWeights(spectrum, nlambda=nlambda)
+
+        wave_step = waves[1]-waves[0]
+        plot_waves = np.concatenate( ([waves[0]-wave_step], waves, [waves[-1]+wave_step])) * 1e6
+        plot_weights = np.concatenate(([0], weights,[0]))
+
+
+        plt.ylabel("Weight")
+        plt.xlabel("Wavelength [$\mu$m]")
+
+        ax3.plot(plot_waves, plot_weights,  drawstyle='steps-mid')
+
+        ax1.set_xbound(0.1, 100)
+
+        self._refresh_window()
+
+    def _refresh_window(self):
+        """ Force the window to refresh, and optionally to show itself if hidden (for recent matplotlibs)"""
+        plt.draw()
+        plt.show(block=False)
+
+    def ev_calcPSF(self):
+        "Event handler for PSF Calculations"
+        self._updateFromGUI()
+
+        if _HAS_PYSYNPHOT_DATA:
+            source = poppy.specFromSpectralType(self.sptype)
+        else:
+            source=None # generic flat spectrum
+
+        self.PSF_HDUlist = self.inst.calcPSF(source=source,
+                detector_oversample= self.detector_oversampling,
+                fft_oversample=self.fft_oversampling,
+                fov_arcsec = self.FOV,  nlambda = self.nlambda, display=True)
+        #self.PSF_HDUlist.display()
+        for w in ['Display PSF', 'Display profiles', 'Save PSF As...']:
+            self.widgets[w].state(['!disabled'])
+        self._refresh_window()
+        _log.info("PSF calculation complete")
+
+    def ev_displayPSF(self):
+        "Event handler for Displaying the PSF"
+        #self._updateFromGUI()
+        #if self.PSF_HDUlist is not None:
+        plt.clf()
+        poppy.display_PSF(self.PSF_HDUlist, vmin = self.advanced_options['psf_vmin'], vmax = self.advanced_options['psf_vmax'],
+                scale = self.advanced_options['psf_scale'], cmap= self.advanced_options['psf_cmap'], normalize=self.advanced_options['psf_normalize'])
+        self._refresh_window()
+
+    def ev_displayProfiles(self):
+        "Event handler for Displaying the PSF"
+        #self._updateFromGUI()
+        poppy.display_profiles(self.PSF_HDUlist)
+        self._refresh_window()
+
+    def ev_displayOptics(self):
+        "Event handler for Displaying the optical system"
+        self._updateFromGUI()
+        _log.info("Selected OPD is "+str(self.opd_name))
+
+        plt.clf()
+        self.inst.display()
+        self._refresh_window()
+
+    def ev_displayOPD(self):
+        self._updateFromGUI()
+        if self.inst.pupilopd is None:
+            tkMessageBox.showwarning( message="You currently have selected no OPD file (i.e. perfect telescope) so there's nothing to display.", title="Can't Display")
+        else:
+            if self._enable_opdserver and 'ITM' in self.opd_name:
+                opd = self.inst.pupilopd   # will contain the actual OPD loaded in _updateFromGUI just above
+            else:
+                opd = fits.getdata(self.inst.pupilopd[0])     # in this case self.inst.pupilopd is a tuple with a string so we have to load it here.
+
+            if len(opd.shape) >2:
+                opd = opd[self.opd_i,:,:] # grab correct slice
+
+            masked_opd = np.ma.masked_equal(opd,  0) # mask out all pixels which are exactly 0, outside the aperture
+            cmap = matplotlib.cm.jet
+            cmap.set_bad('k', 0.8)
+            plt.clf()
+            plt.imshow(masked_opd, cmap=cmap, interpolation='nearest', vmin=-0.5, vmax=0.5)
+            plt.title("OPD from %s, #%d" %( os.path.basename(self.opd_name), self.opd_i))
+            cb = plt.colorbar(orientation='vertical')
+            cb.set_label('microns')
+
+            f = plt.gcf()
+            plt.text(0.4, 0.02, "OPD WFE = %6.2f nm RMS" % (masked_opd.std()*1000.), transform=f.transFigure)
+            self._refresh_window()
+
+    def ev_launch_ITM_dialog(self):
+        tkMessageBox.showwarning( message="ITM dialog box not yet implemented", title="Can't Display")
+
+    def ev_update_OPD_labels(self):
+        "Update the descriptive text for all OPD files"
+        for iname in self.instrument.keys():
+            self.ev_update_OPD_label(self.widgets[iname+"_opd"], self.widgets[iname+"_opd_label"], iname)
+
+    def ev_update_OPD_label(self, widget_combobox, widget_label, iname):
+        "Update the descriptive text displayed about one OPD file"
+        showitm=False # default is do not show
+        filename = self.instrument[iname]._datapath +os.sep+ 'OPD'+ os.sep+widget_combobox.get()
+        if filename.endswith(".fits"):
+            header_summary = fits.getheader(filename)['SUMMARY']
+            self.widgets[iname+"_opd_i"]['state'] = 'readonly'
+        else:  # Special options for non-FITS file inputs
+            self.widgets[iname+"_opd_i"]['state'] = 'disabled'
+            if 'Zero' in widget_combobox.get():
+                header_summary = " 0 nm RMS"
+            elif 'ITM' in widget_combobox.get() and self._enable_opdserver:
+                header_summary= "Get OPD from ITM Server"
+                showitm=True
+            elif 'ITM' in widget_combobox.get() and not self._enable_opdserver:
+                header_summary = "ITM Server is not running or otherwise unavailable."
+            else: # other??
+                header_summary = "   "
+
+        widget_label.configure(text=header_summary, width=30)
+
+
+        if showitm:
+            self.widgets[iname+"_itm_coords"].grid() # re-show ITM options
+        else:
+            self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
+
+class WebbPSF_GUI(PSFGenerationGUI):
+    """ A GUI for the Webb PSF Simulator
 
     Documentation TBD!
 
     """
     def __init__(self, opdserver=None):
+        super(WebbPSF_GUI, self).__init__()
         # init the object and subobjects
         self.instrument = {}
         self.widgets = {}
         self.vars = {}
-        self.advanced_options = {'parity': 'any', 'force_coron': False, 'no_sam': False, 'psf_vmin': 1e-8, 'psf_vmax': 1.0, 'psf_scale': 'log', 'psf_cmap_str': 'Jet (blue to red)' , 'psf_normalize': 'Total', 'psf_cmap': matplotlib.cm.jet}
         insts = ['NIRCam', 'NIRSpec','NIRISS', 'MIRI', 'FGS']
         for i in insts:
             self.instrument[i] = webbpsf_core.Instrument(i)
@@ -55,41 +292,40 @@ class WebbPSF_GUI(object):
 
         
         # create widgets & run
-        if _use_ttk:
-            self._create_widgets_py27()
-        else:
-            self._create_widgets_py26()
+        self._create_widgets()
         self.root.update()
 
+    def _populate_source_properties(self, root):
+        #-- star
+        source_labelframe = ttk.LabelFrame(root, text='Source Properties')
 
-    def _add_labeled_dropdown(self, name, root,label="Entry:", values=None, default=None, width=5, position=(0,0), **kwargs):
-        "convenient wrapper for adding a Combobox"
+        if _HAS_PYSYNPHOT_DATA:
+            self._add_labeled_dropdown("SpType", source_labelframe, label='    Spectral Type:', values=poppy.specFromSpectralType("",return_list=True), default='G0V', width=25, position=(0,0), sticky='W')
+            ttk.Button(source_labelframe, text='Plot spectrum', command=self.ev_plotspectrum).grid(row=0,column=2,sticky='E',columnspan=4)
 
-        ttk.Label(root, text=label).grid(row=position[0],  column=position[1], sticky='W')
+        r = 1
+        frame_root = ttk.Frame(source_labelframe)
 
-        self.vars[name] = tk.StringVar()
-        self.widgets[name] = ttk.Combobox(root, textvariable=self.vars[name], width=width, state='readonly')
-        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
-        self.widgets[name]['values'] = values
+        self._add_labeled_entry("source_off_r", frame_root, label='    Source Position: r=', value='0.0', width=5, position=(r,0), sticky='W')
+        self._add_labeled_entry("source_off_theta", frame_root, label='arcsec,  PA=', value='0', width=3, position=(r,2), sticky='W')
 
-        if default is None: default=values[0]
-        self.widgets[name].set(default)
- 
+        self.vars["source_off_centerpos"] = tk.StringVar()
+        self.vars["source_off_centerpos"].set('corner')
 
-    def _add_labeled_entry(self, name, root,label="Entry:", value="", width=5, position=(0,0), postlabel=None, **kwargs):
-        "convenient wrapper for adding an Entry"
-        ttk.Label(root, text=label).grid(row=position[0],  column=position[1], sticky='W')
+        ttk.Label(frame_root, text='deg, centered on ' ).grid(row=r, column=4)
+        pixel = ttk.Radiobutton(frame_root, text='pixel', variable=self.vars["source_off_centerpos"], value='pixel')
+        pixel.grid(row=r, column=5)
+        corner = ttk.Radiobutton(frame_root, text='corner', variable=self.vars["source_off_centerpos"], value='corner')
+        corner.grid(row=r, column=6)
+        frame_root.grid(row=r, column=0, columnspan=5, sticky='W')
+        source_labelframe.columnconfigure(2, weight=1)
+        source_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
+    def _populate_instrument_config(self):
+        pass
+    def _populate_calculation_options(self):
+        pass
 
-        self.vars[name] = tk.StringVar()
-        self.widgets[name] = ttk.Entry(root, textvariable=self.vars[name], width=width)
-        self.widgets[name].insert(0,value)
-        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
-
-        if postlabel is not None:
-            ttk.Label(root, text=postlabel).grid(row=position[0],  column=position[1]+2, sticky='W')
-
-
-    def _create_widgets_py27(self):
+    def _create_widgets(self):
         """Create a nice GUI using the enhanced widget set provided by 
         the ttk extension to Tkinter, available in Python 2.7 or newer
         """
@@ -104,33 +340,7 @@ class WebbPSF_GUI(object):
 
         #ttk.Label(frame, text='James Webb PSF Calculator' ).grid(row=0)
 
-        #-- star
-        lf = ttk.LabelFrame(frame, text='Source Properties')
-
-        if _HAS_PYSYNPHOT:
-            self._add_labeled_dropdown("SpType", lf, label='    Spectral Type:', values=poppy.specFromSpectralType("",return_list=True), default='G0V', width=25, position=(0,0), sticky='W')
-            ttk.Button(lf, text='Plot spectrum', command=self.ev_plotspectrum).grid(row=0,column=2,sticky='E',columnspan=4)
-
-        r = 1
-        fr2 = ttk.Frame(lf)
-
-        self._add_labeled_entry("source_off_r", fr2, label='    Source Position: r=', value='0.0', width=5, position=(r,0), sticky='W')
-        self._add_labeled_entry("source_off_theta", fr2, label='arcsec,  PA=', value='0', width=3, position=(r,2), sticky='W')
-
-        self.vars["source_off_centerpos"] = tk.StringVar()
-        self.vars["source_off_centerpos"].set('corner')
-
-        ttk.Label(fr2, text='deg, centered on ' ).grid(row=r, column=4)
-        pixel = ttk.Radiobutton(fr2, text='pixel', variable=self.vars["source_off_centerpos"], value='pixel')
-        pixel.grid(row=r, column=5)
-        corner = ttk.Radiobutton(fr2, text='corner', variable=self.vars["source_off_centerpos"], value='corner')
-        corner.grid(row=r, column=6)
-        fr2.grid(row=r, column=0, columnspan=5, sticky='W')
-
-
-
-        lf.columnconfigure(2, weight=1)
-        lf.grid(row=1, sticky='E,W', padx=10,pady=5)
+        self._populate_source_properties(frame)
 
         #-- instruments
         lf = ttk.LabelFrame(frame, text='Instrument Config')
@@ -339,7 +549,10 @@ class WebbPSF_GUI(object):
         self.root.rowconfigure(0, weight=1)
 
     def _create_widgets_py26(self):
-        """Create a mediocre GUI using the unimpressive widget set 
+        """
+        TODO: pending https://github.com/mperrin/webbpsf/issues/21, this could be removed or reinstated
+
+        Create a mediocre GUI using the unimpressive widget set
         available in Python 2.6
         """
 
@@ -590,221 +803,14 @@ class WebbPSF_GUI(object):
         self.root.rowconfigure(0, weight=1)
 
 
-    def quit(self):
-        " Quit the GUI"
-        if tkMessageBox.askyesno( message='Are you sure you want to quit WebbPSF?', icon='question', title='Confirm quit') :
-            self.root.destroy()
-
-    def ev_SaveAs(self):
-        "Event handler for Save As of output PSFs"
-        filename = tkFileDialog.asksaveasfilename(
-                initialfile='PSF_%s_%s.fits' %(self.iname, self.filter), 
-                filetypes=[('FITS', '.fits')],
-                defaultextension='.fits',
-                parent=self.root)
-        if len(filename) > 0:
-            self.PSF_HDUlist.writeto(filename) 
-            print "Saved to %s" % filename
-
-    def ev_options(self):
-        d = WebbPSFOptionsDialog(self.root, input_options = self.advanced_options)
-        if d.results is not None: # none means the user hit 'cancel'
-            self.advanced_options = d.results
-
-    def ev_plotspectrum(self):
-        "Event handler for Plot Spectrum "
-        self._updateFromGUI()
-
-        #sptype = self.widgets['SpType'].get()
-        #iname = self.widgets[self.widgets['tabset'].select()]
-        print "Spectral type is "+self.sptype
-        print "Selected instrument tab is "+self.iname
-        #if iname != 'TFI':
-            #filter = self.widgets[self.iname+"_filter"].get()
-        print "Selected instrument filter is "+self.filter
 
 
-        plt.clf()
-
-        ax1 = plt.subplot(311)
-        spectrum = poppy.specFromSpectralType(self.sptype)
-        synplot(spectrum)
-        ax1.set_ybound(1e-6, 1e8) # hard coded for now
-        ax1.yaxis.set_major_locator(matplotlib.ticker.LogLocator(base=1000))
-        legend_font = matplotlib.font_manager.FontProperties(size=10)
-        ax1.legend(loc='lower right', prop=legend_font)
-
-
-        ax2 = plt.subplot(312, sharex=ax1)
-        ax2.set_ybound(0,1.1)
-        #try:
-        band = self.inst._getSynphotBandpass(self.inst.filter) #pysynphot.ObsBandpass(obsname)
-        band.name = "%s %s" % (self.iname, self.inst.filter)
-        synplot(band) #, **kwargs)
-        legend_font = matplotlib.font_manager.FontProperties(size=10)
-        plt.legend(loc='lower right', prop=legend_font)
-
-        ax2.set_ybound(0,1.1)
-
-
-        ax3 = plt.subplot(313, sharex=ax1)
-        if self.nlambda is None:
-            # Automatically determine number of appropriate wavelengths.
-            # Make selection based on filter configuration file
-            try:
-                #if self.inst.name=='TFI':    # filter names are irrelevant for TFI.
-                    #nlambda=5
-                #else:
-                    #filt_width = self.filter[-1]
-                    #lookup_table = {'NIRCam': {'2': 10, 'W':20,'M':3,'N':1}, 
-                                    #'NIRSpec':{'W':5,'M':3,'N':1}, 
-                                    #'MIRI':{'W':5,'M':3,'N':1}, 
-                                    #'FGS':{'W':5,'M':3,'N':1}}
-
-                    #nlambda = lookup_table[self.name][filt_width]
-                nlambda = self.inst._filter_nlambda_default[self.filter]
-            except:
-                nlambda=10
-        else:
-            nlambda = self.nlambda
-        ax1.set_xbound(0.1, 100)
-        plt.draw()
-        waves, weights = self.inst._getWeights(spectrum, nlambda=nlambda)
-
-        wave_step = waves[1]-waves[0]
-        plot_waves = np.concatenate( ([waves[0]-wave_step], waves, [waves[-1]+wave_step])) * 1e6
-        plot_weights = np.concatenate(([0], weights,[0]))
-
-
-        plt.ylabel("Weight")
-        plt.xlabel("Wavelength [$\mu$m]")
-
-        ax3.plot(plot_waves, plot_weights,  drawstyle='steps-mid')
-
-        ax1.set_xbound(0.1, 100)
-
-	self._refresh_window()
-
-    def _refresh_window(self):
-	""" Force the window to refresh, and optionally to show itself if hidden (for recent matplotlibs)"""
-        plt.draw()
-	from distutils.version import StrictVersion
-	if StrictVersion(matplotlib.__version__) >= StrictVersion('1.1'):
-		plt.show(block=False)
-
-    def ev_calcPSF(self):
-        "Event handler for PSF Calculations"
-        self._updateFromGUI()
-
-        if _HAS_PYSYNPHOT:
-            source = poppy.specFromSpectralType(self.sptype)
-        else:
-            source=None # generic flat spectrum
-
-        self.PSF_HDUlist = self.inst.calcPSF(source=source, 
-                detector_oversample= self.detector_oversampling,
-                fft_oversample=self.fft_oversampling,
-                fov_arcsec = self.FOV,  nlambda = self.nlambda, display=True)
-        #self.PSF_HDUlist.display()
-        for w in ['Display PSF', 'Display profiles', 'Save PSF As...']:
-           self.widgets[w].state(['!disabled'])
-	self._refresh_window()
-	_log.info("PSF calculation complete")
-
-    def ev_displayPSF(self):
-        "Event handler for Displaying the PSF"
-        #self._updateFromGUI()
-        #if self.PSF_HDUlist is not None:
-        plt.clf()
-        poppy.display_PSF(self.PSF_HDUlist, vmin = self.advanced_options['psf_vmin'], vmax = self.advanced_options['psf_vmax'], 
-                scale = self.advanced_options['psf_scale'], cmap= self.advanced_options['psf_cmap'], normalize=self.advanced_options['psf_normalize'])
-	self._refresh_window()
-
-    def ev_displayProfiles(self):
-        "Event handler for Displaying the PSF"
-        #self._updateFromGUI()
-        poppy.display_profiles(self.PSF_HDUlist)        
-	self._refresh_window()
-
-    def ev_displayOptics(self):
-        "Event handler for Displaying the optical system"
-        self._updateFromGUI()
-        _log.info("Selected OPD is "+str(self.opd_name))
-
-        plt.clf()
-        self.inst.display()
-	self._refresh_window()
-
-    def ev_displayOPD(self):
-        self._updateFromGUI()
-        if self.inst.pupilopd is None:
-            tkMessageBox.showwarning( message="You currently have selected no OPD file (i.e. perfect telescope) so there's nothing to display.", title="Can't Display") 
-        else:
-            if self._enable_opdserver and 'ITM' in self.opd_name:
-                opd = self.inst.pupilopd   # will contain the actual OPD loaded in _updateFromGUI just above
-            else:
-                opd = fits.getdata(self.inst.pupilopd[0])     # in this case self.inst.pupilopd is a tuple with a string so we have to load it here. 
-
-            if len(opd.shape) >2:
-                opd = opd[self.opd_i,:,:] # grab correct slice
-
-            masked_opd = np.ma.masked_equal(opd,  0) # mask out all pixels which are exactly 0, outside the aperture
-            cmap = matplotlib.cm.jet
-            cmap.set_bad('k', 0.8)
-            plt.clf()
-            plt.imshow(masked_opd, cmap=cmap, interpolation='nearest', vmin=-0.5, vmax=0.5)
-            plt.title("OPD from %s, #%d" %( os.path.basename(self.opd_name), self.opd_i))
-            cb = plt.colorbar(orientation='vertical')
-            cb.set_label('microns')
-
-            f = plt.gcf()
-            plt.text(0.4, 0.02, "OPD WFE = %6.2f nm RMS" % (masked_opd.std()*1000.), transform=f.transFigure)
-
-	self._refresh_window()
-
-    def ev_launch_ITM_dialog(self):
-        tkMessageBox.showwarning( message="ITM dialog box not yet implemented", title="Can't Display") 
-
-    def ev_update_OPD_labels(self):
-        "Update the descriptive text for all OPD files"
-        for iname in self.instrument.keys():
-            self.ev_update_OPD_label(self.widgets[iname+"_opd"], self.widgets[iname+"_opd_label"], iname)
-
-    def ev_update_OPD_label(self, widget_combobox, widget_label, iname):
-        "Update the descriptive text displayed about one OPD file"
-        showitm=False # default is do not show
-        filename = self.instrument[iname]._datapath +os.sep+ 'OPD'+ os.sep+widget_combobox.get()
-        if filename.endswith(".fits"):
-            header_summary = fits.getheader(filename)['SUMMARY']
-            self.widgets[iname+"_opd_i"]['state'] = 'readonly'
-        else:  # Special options for non-FITS file inputs
-            self.widgets[iname+"_opd_i"]['state'] = 'disabled'
-            if 'Zero' in widget_combobox.get():
-                header_summary = " 0 nm RMS"
-            elif 'ITM' in widget_combobox.get() and self._enable_opdserver:
-                header_summary= "Get OPD from ITM Server"
-                showitm=True
-            elif 'ITM' in widget_combobox.get() and not self._enable_opdserver:
-                header_summary = "ITM Server is not running or otherwise unavailable."
-            else: # other??
-                header_summary = "   "
-
-        widget_label.configure(text=header_summary, width=30)
-
-
-        if showitm:
-            self.widgets[iname+"_itm_coords"].grid() # re-show ITM options
-        else:
-            self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
 
     def _updateFromGUI(self):
         # get GUI values
-        if _HAS_PYSYNPHOT:
+        if _HAS_PYSYNPHOT_DATA:
             self.sptype = self.widgets['SpType'].get()
         self.iname = self.widgets[self.widgets['tabset'].select()]
-
-
- 
 
         try:
             self.nlambda= int(self.widgets['nlambda'].get())
@@ -859,14 +865,12 @@ class WebbPSF_GUI(object):
             self.inst.pupil_mask = self.widgets[self.iname+"_pupil"].get()
             # TODO read in mis-registration options here.
 
-
             options['source_offset_r'] = float(self.widgets["source_off_r"].get())
             options['source_offset_theta'] = float(self.widgets["source_off_theta"].get())
             options['pupil_shift_x'] = float(self.widgets[self.iname+"_pupilshift_x"].get())/100. # convert from percent to fraction
             options['pupil_shift_y'] = float(self.widgets[self.iname+"_pupilshift_y"].get())/100. # convert from percent to fraction
 
         self.inst.options = options
-
 
     def mainloop(self):
         self.root.mainloop()
@@ -880,7 +884,6 @@ class Dialog(tk.Toplevel):
     """
 
     def __init__(self, parent, title = None, input_options=None):
-
         tk.Toplevel.__init__(self, parent)
         self.transient(parent)
         self.input_options = input_options
@@ -962,11 +965,9 @@ class Dialog(tk.Toplevel):
     # command hooks
 
     def validate(self):
-
         return True # override
 
     def apply(self):
-
         pass # override
 
 
@@ -1000,7 +1001,6 @@ class WebbPSFOptionsDialog(Dialog):
 
 
     def body(self, master):
-        self.results = None # in case we cancel this gets returned
         self.results = None # in case we cancel this gets returned
         self.vars = {}
         self.widgets = {}
@@ -1078,8 +1078,6 @@ class WebbPSFOptionsDialog(Dialog):
             _log.error("Invalid entries in one or more fields. Please re-enter!")
         return can_apply
 
-
-
 #-------------------------------------------------------------------------
 
 def synplot(thing, waveunit='micron', label=None, **kwargs):
@@ -1119,18 +1117,21 @@ def synplot(thing, waveunit='micron', label=None, **kwargs):
 
 def tkgui(fignum=1):
     # enable log message printout
-    logging.basicConfig(level=logging.INFO,format='%(name)-10s: %(levelname)-8s %(message)s')
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(name)-10s: %(levelname)-8s %(message)s'
+    )
+
+    if _HAS_PYSYNPHOT_INSTALLED and not _HAS_PYSYNPHOT_DATA:
+        _log.warn(
+            "Environment variable PYSYN_CDBS not set in environment! "
+            "Set PYSYN_CDBS to the directory containing the CDBS data. "
+            "For more information, see `Installing or updating pysynphot' in "
+            "installation.rst."
+        )
+
     # start the GUI
     gui = WebbPSF_GUI()
     plt.figure(fignum)
     #plt.show(block=False)
     gui.mainloop()
-
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO,format='%(name)-10s: %(levelname)-8s %(message)s')
-    gui()
-
-
-
