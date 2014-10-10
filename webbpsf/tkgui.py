@@ -70,7 +70,7 @@ class PSFGenerationGUI(object):
         "Quit the GUI"
         if tkMessageBox.askyesno(message='Are you sure you want to quit?', icon='question', title='Confirm quit') :
             self.root.destroy()
-    def ev_SaveAs(self):
+    def ev_save_as(self):
         "Event handler for Save As of output PSFs"
         filename = tkFileDialog.asksaveasfilename(
                 initialfile='PSF_%s_%s.fits' %(self.iname, self.filter),
@@ -85,7 +85,7 @@ class PSFGenerationGUI(object):
         if d.results is not None: # none means the user hit 'cancel'
             self.advanced_options = d.results
 
-    def ev_plotspectrum(self):
+    def ev_plot_spectrum(self):
         "Event handler for Plot Spectrum "
         self._updateFromGUI()
 
@@ -164,7 +164,7 @@ class PSFGenerationGUI(object):
         plt.draw()
         plt.show(block=False)
 
-    def ev_calcPSF(self):
+    def ev_calc_PSF(self):
         "Event handler for PSF Calculations"
         self._updateFromGUI()
 
@@ -183,7 +183,7 @@ class PSFGenerationGUI(object):
         self._refresh_window()
         _log.info("PSF calculation complete")
 
-    def ev_displayPSF(self):
+    def ev_display_PSF(self):
         "Event handler for Displaying the PSF"
         #self._updateFromGUI()
         #if self.PSF_HDUlist is not None:
@@ -192,13 +192,13 @@ class PSFGenerationGUI(object):
                 scale = self.advanced_options['psf_scale'], cmap= self.advanced_options['psf_cmap'], normalize=self.advanced_options['psf_normalize'])
         self._refresh_window()
 
-    def ev_displayProfiles(self):
-        "Event handler for Displaying the PSF"
+    def ev_display_profiles(self):
+        "Event handler for displaying PSF encircled energy profiles"
         #self._updateFromGUI()
         poppy.display_profiles(self.PSF_HDUlist)
         self._refresh_window()
 
-    def ev_displayOptics(self):
+    def ev_display_optics(self):
         "Event handler for Displaying the optical system"
         self._updateFromGUI()
         _log.info("Selected OPD is "+str(self.opd_name))
@@ -207,7 +207,7 @@ class PSFGenerationGUI(object):
         self.inst.display()
         self._refresh_window()
 
-    def ev_displayOPD(self):
+    def ev_display_OPD(self):
         self._updateFromGUI()
         if self.inst.pupilopd is None:
             tkMessageBox.showwarning( message="You currently have selected no OPD file (i.e. perfect telescope) so there's nothing to display.", title="Can't Display")
@@ -301,7 +301,7 @@ class WebbPSF_GUI(PSFGenerationGUI):
 
         if _HAS_PYSYNPHOT_DATA:
             self._add_labeled_dropdown("SpType", source_labelframe, label='    Spectral Type:', values=poppy.specFromSpectralType("",return_list=True), default='G0V', width=25, position=(0,0), sticky='W')
-            ttk.Button(source_labelframe, text='Plot spectrum', command=self.ev_plotspectrum).grid(row=0,column=2,sticky='E',columnspan=4)
+            ttk.Button(source_labelframe, text='Plot spectrum', command=self.ev_plot_spectrum).grid(row=0, column=2, sticky='E', columnspan=4)
 
         r = 1
         frame_root = ttk.Frame(source_labelframe)
@@ -367,7 +367,7 @@ class WebbPSF_GUI(PSFGenerationGUI):
             else:
                 ttk.Label(page, text='Configuration Options for '+iname+"                      ").grid(row=0, columnspan=2, sticky='W')
 
-            ttk.Button(page, text='Display Optics', command=self.ev_displayOptics ).grid(column=2, row=0, sticky='E', columnspan=3)
+            ttk.Button(page, text='Display Optics', command=self.ev_display_optics ).grid(column=2, row=0, sticky='E', columnspan=3)
 
 
             #if  iname != 'TFI':
@@ -465,9 +465,9 @@ class WebbPSF_GUI(PSFGenerationGUI):
                     # The below code does not work, and I can't tell why. This only ever has iname = 'FGS' no matter which instrument.
                     # So instead brute-force it with the above to just update all 5. 
                     #lambda e: self.ev_update_OPD_label(self.widgets[iname+"_opd"], self.widgets[iname+"_opd_label"], iname) )
-            ttk.Button(fr2, text='Display', command=self.ev_displayOPD).grid(column=5,sticky='E',row=0)
+            ttk.Button(fr2, text='Display', command=self.ev_display_OPD).grid(column=5,sticky='E',row=0)
 
-            fr2.grid(row=5, column=0, columnspan=4,sticky='S')
+            fr2.grid(row=5, column=0, columnspan=4, sticky='S')
 
 
 
@@ -524,18 +524,18 @@ class WebbPSF_GUI(PSFGenerationGUI):
 
         lf = ttk.Frame(frame)
 
-        def addbutton(self,lf, text, command, pos, disabled=False):
+        def addbutton(text, command, pos, disabled=False):
+            """Shorthand inner function for adding buttons"""
             self.widgets[text] = ttk.Button(lf, text=text, command=command )
             self.widgets[text].grid(column=pos, row=0, sticky='E')
             if disabled:
                 self.widgets[text].state(['disabled'])
 
- 
-        addbutton(self,lf,'Compute PSF', self.ev_calcPSF, 0)
-        addbutton(self,lf,'Display PSF', self.ev_displayPSF, 1, disabled=True)
-        addbutton(self,lf,'Display profiles', self.ev_displayProfiles, 2, disabled=True)
-        addbutton(self,lf,'Save PSF As...', self.ev_SaveAs, 3, disabled=True)
-        addbutton(self,lf,'More options...', self.ev_options, 4, disabled=False)
+        addbutton('Compute PSF', self.ev_calc_PSF, 0)
+        addbutton('Display PSF', self.ev_display_PSF, 1, disabled=True)
+        addbutton('Display profiles', self.ev_display_profiles, 2, disabled=True)
+        addbutton('Save PSF As...', self.ev_save_as, 3, disabled=True)
+        addbutton('More options...', self.ev_options, 4, disabled=False)
 
         ttk.Button(lf, text='Quit', command=self.quit).grid(column=5, row=0)
         lf.columnconfigure(2, weight=1)
@@ -577,7 +577,7 @@ class WebbPSF_GUI(PSFGenerationGUI):
         self.widgets['SpType']['values'] = self.stars.sptype_list
         self.widgets['SpType'].set('G0V')
         ttk.Label(lf, text='    ' ).grid(row=0, column=2)
-        ttk.Button(lf, text='Plot spectrum', command=self.ev_plotspectrum).grid(row=0,column=2,sticky='E',columnspan=4)
+        ttk.Button(lf, text='Plot spectrum', command=self.ev_plot_spectrum).grid(row=0, column=2, sticky='E', columnspan=4)
 
         r = 1
         ttk.Label(lf, text='    Source Position: r=' ).grid(row=r, column=0)
@@ -706,7 +706,7 @@ class WebbPSF_GUI(PSFGenerationGUI):
                     # The below code does not work, and I can't tell why. This only ever has iname = 'FGS' no matter which instrument.
                     # So instead brute-force it with the above to just update all 5. 
                     #lambda e: self.ev_update_OPD_label(self.widgets[iname+"_opd"], self.widgets[iname+"_opd_label"], iname) )
-            ttk.Button(fr2, text='Display', command=self.ev_displayOPD).grid(column=5,sticky='E',row=0)
+            ttk.Button(fr2, text='Display', command=self.ev_display_OPD).grid(column=5,sticky='E',row=0)
 
             fr2.grid(row=5, column=0, columnspan=4,sticky='S')
 
@@ -739,7 +739,7 @@ class WebbPSF_GUI(PSFGenerationGUI):
         r+=1
         ttk.Label(lf, text='Output Oversampling:').grid(row=r, sticky='W')
         self.widgets['detector_oversampling'] = ttk.Entry(lf, width=3)
-        self.widgets['detector_oversampling'].grid(row=r,column=1, sticky='E')
+        self.widgets['detector_oversampling'].grid(row=r, column=1, sticky='E')
         self.widgets['detector_oversampling'].insert(0,'2')
         ttk.Label(lf, text='x finer than instrument pixels       ' ).grid(row=r, column=2, sticky='W', columnspan=2)
 
@@ -752,7 +752,7 @@ class WebbPSF_GUI(PSFGenerationGUI):
         r+=1
         ttk.Label(lf, text='Coronagraph Oversampling:').grid(row=r, sticky='W')
         self.widgets['fft_oversampling'] = ttk.Entry(lf, width=3)
-        self.widgets['fft_oversampling'].grid(row=r,column=1, sticky='E')
+        self.widgets['fft_oversampling'].grid(row=r, column=1, sticky='E')
         self.widgets['fft_oversampling'].insert(0,'2')
         ttk.Label(lf, text='x finer than Nyquist' ).grid(row=r, column=2, sticky='W', columnspan=2)
 
@@ -760,14 +760,14 @@ class WebbPSF_GUI(PSFGenerationGUI):
         r+=1
         ttk.Label(lf, text='# of wavelengths:').grid(row=r, sticky='W')
         self.widgets['nlambda'] = ttk.Entry(lf, width=3)
-        self.widgets['nlambda'].grid(row=r,column=1, sticky='E')
+        self.widgets['nlambda'].grid(row=r, column=1, sticky='E')
         #self.widgets['nlambda'].insert(0,'1')
         r+=1
         ttk.Label(lf, text='Jitter model:').grid(row=r, sticky='W')
         self.widgets['jitter'] = ttk.Combobox(lf, width=20, state='readonly')
         self.widgets['jitter']['values'] = ['Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid']
         self.widgets['jitter'].set('Just use OPDs')
-        self.widgets['jitter'].grid(row=r,column=1, columnspan=2, sticky='E')
+        self.widgets['jitter'].grid(row=r, column=1, columnspan=2, sticky='E')
  
         #ttk.Label(lf, text='x finer than instrument pixels' ).grid(row=r, column=2, sticky='W', columnspan=2)
  
@@ -781,12 +781,12 @@ class WebbPSF_GUI(PSFGenerationGUI):
         lf.grid(row=4, sticky='E,W', padx=10, pady=5)
 
         lf = ttk.Frame(frame)
-        ttk.Button(lf, text='Compute PSF', command=self.ev_calcPSF ).grid(column=0, row=0)
-        self.widgets['SaveAs'] = ttk.Button(lf, text='Save PSF...', command=self.ev_SaveAs )
+        ttk.Button(lf, text='Compute PSF', command=self.ev_calc_PSF).grid(column=0, row=0)
+        self.widgets['SaveAs'] = ttk.Button(lf, text='Save PSF...', command=self.ev_save_as)
         self.widgets['SaveAs'].grid(column=1, row=0, sticky='E')
         self.widgets['SaveAs'].state(['disabled'])
-        #ttk.Button(lf, text='Display PSF', command=self.ev_displayPSF).grid(column=1, row=0)
-        ttk.Button(lf, text='Display Optics', command=self.ev_displayOptics ).grid(column=3, row=0)
+        #ttk.Button(lf, text='Display PSF', command=self.ev_display_PSF).grid(column=1, row=0)
+        ttk.Button(lf, text='Display Optics', command=self.ev_display_optics).grid(column=3, row=0)
         ttk.Button(lf, text='Quit', command=self.quit).grid(column=5, row=0)
         lf.columnconfigure(2, weight=1)
         lf.columnconfigure(4, weight=1)
