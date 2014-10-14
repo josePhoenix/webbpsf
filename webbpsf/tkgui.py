@@ -51,6 +51,9 @@ class PSFGenerationGUI(object):
         self.widgets = {}
         self.vars = {}
         self.psf_hdulist = None
+        # init Tk window
+        self.root = tk.Tk()
+        self.root.geometry('+50+50')
 
     def _add_labeled_dropdown(self, name, root, label="Entry:", values=None,
                               default=None, width=5, position=(0, 0), **kwargs):
@@ -392,8 +395,7 @@ class WebbPSFGUI(PSFGenerationGUI):
         """
         #---- create the GUIs
         insts = ['NIRCam', 'NIRSpec','NIRISS', 'MIRI',  'FGS']
-        self.root = tk.Tk()
-        self.root.geometry('+50+50')
+
         self.root.title("James Webb Space Telescope PSF Calculator")
 
         frame = ttk.Frame(self.root)
