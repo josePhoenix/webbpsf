@@ -23,19 +23,13 @@ try:
     else:
         _HAS_PYSYNPHOT_DATA = False
 except ImportError:
+    pysynphot = None
     _HAS_PYSYNPHOT_INSTALLED = False
     _HAS_PYSYNPHOT_DATA = False
 
 import poppy
 from webbpsf import webbpsf_core
 
-def _refresh_window():
-    """
-    Force the window to refresh, and optionally to show itself
-    if hidden (for recent matplotlibs)
-    """
-    plt.draw()
-    plt.show(block=False)
 
 class PSFGenerationGUI(object):
     """Base Class for a PSF generation GUI using Tkinter & TTK native widgets"""
@@ -60,7 +54,7 @@ class PSFGenerationGUI(object):
 
     def _add_labeled_dropdown(self, name, root, label="Entry:", values=None,
                               default=None, width=5, position=(0, 0), **kwargs):
-        "Convenient wrapper for adding a labeled Combobox"
+        """Convenient wrapper for adding a labeled Combobox"""
 
         ttk.Label(root, text=label).grid(
             row=position[0],
@@ -84,7 +78,7 @@ class PSFGenerationGUI(object):
 
     def _add_labeled_entry(self, name, root, label="Entry:", value="",
                            width=5, position=(0, 0), postlabel=None, **kwargs):
-        "Convenient wrapper for adding a labeled Entry"
+        """Convenient wrapper for adding a labeled Entry"""
         ttk.Label(root, text=label).grid(
             row=position[0],
             column=position[1],
@@ -106,8 +100,9 @@ class PSFGenerationGUI(object):
                 column=position[1]+2,
                 sticky='W'
             )
+
     def quit(self):
-        "Quit the GUI"
+        """Quit the GUI"""
         confirm_quit = tkMessageBox.askyesno(
             message='Are you sure you want to quit?',
             icon='question',
@@ -115,8 +110,9 @@ class PSFGenerationGUI(object):
         )
         if confirm_quit:
             self.root.destroy()
+
     def ev_save_as(self):
-        "Event handler for Save As of output PSFs"
+        """Event handler for Save As of output PSFs"""
         filename = tkFileDialog.asksaveasfilename(
             initialfile='PSF_%s_%s.fits' % (self.iname, self.filter),
             filetypes=[('FITS', '.fits')],
@@ -126,7 +122,9 @@ class PSFGenerationGUI(object):
         if len(filename) > 0:
             self.PSF_HDUlist.writeto(filename)
             print "Saved to %s" % filename
+
     def ev_options(self):
+        """Event handler to open advanced options dialog"""
         dialog = WebbPSFOptionsDialog(
             self.root,
             input_options=self.advanced_options
@@ -135,7 +133,7 @@ class PSFGenerationGUI(object):
             self.advanced_options = dialog.results
 
     def ev_plot_spectrum(self):
-        "Event handler for Plot Spectrum "
+        """Event handler for Plot Spectrum button"""
         self._updateFromGUI()
 
         #sptype = self.widgets['SpType'].get()
@@ -145,7 +143,6 @@ class PSFGenerationGUI(object):
         #if iname != 'TFI':
             #filter = self.widgets[self.iname+"_filter"].get()
         print "Selected instrument filter is", self.filter
-
 
         plt.clf()
 
@@ -202,7 +199,7 @@ class PSFGenerationGUI(object):
         _refresh_window()
 
     def ev_calc_psf(self):
-        "Event handler for PSF Calculations"
+        """Event handler for PSF Calculations"""
         self._updateFromGUI()
 
         if _HAS_PYSYNPHOT_DATA:
@@ -225,7 +222,7 @@ class PSFGenerationGUI(object):
         _log.info("PSF calculation complete")
 
     def ev_display_psf(self):
-        "Event handler for Displaying the PSF"
+        """Event handler for displaying the PSF"""
         #self._updateFromGUI()
         #if self.PSF_HDUlist is not None:
         plt.clf()
@@ -240,13 +237,13 @@ class PSFGenerationGUI(object):
         _refresh_window()
 
     def ev_display_profiles(self):
-        "Event handler for displaying PSF encircled energy profiles"
+        """Event handler for displaying PSF encircled energy profiles"""
         #self._updateFromGUI()
         poppy.display_profiles(self.psf_hdulist)
         _refresh_window()
 
     def ev_display_optics(self):
-        "Event handler for Displaying the optical system"
+        """Event handler for displaying the optical system"""
         self._updateFromGUI()
         _log.info("Selected OPD is "+str(self.opd_name))
 
@@ -255,6 +252,7 @@ class PSFGenerationGUI(object):
         _refresh_window()
 
     def ev_display_opd(self):
+        """Event handler to display the OPD map"""
         self._updateFromGUI()
         if self.inst.pupilopd is None:
             tkMessageBox.showwarning(
@@ -293,13 +291,14 @@ class PSFGenerationGUI(object):
             _refresh_window()
 
     def ev_launch_itm_dialog(self):
+        """TODO:jlong: move this to WebbPSFGUI"""
         tkMessageBox.showwarning(
             message="ITM dialog box not yet implemented",
             title="Can't Display"
         )
 
     def ev_update_opd_labels(self):
-        "Update the descriptive text for all OPD files"
+        """Update the descriptive text for all OPD files"""
         for iname in self.instrument.keys():
             self.ev_update_opd_label(
                 self.widgets[iname+"_opd"],
@@ -308,7 +307,7 @@ class PSFGenerationGUI(object):
             )
 
     def ev_update_opd_label(self, widget_combobox, widget_label, iname):
-        "Update the descriptive text displayed about one OPD file"
+        """Update the descriptive text displayed about one OPD file"""
         showitm = False # default is do not show
         filename = os.path.join(self.instrument[iname]._datapath, 'OPD',
                                 widget_combobox.get())
@@ -956,6 +955,14 @@ def synplot(thing, waveunit='micron', label=None, **kwargs):
         _log.error("Don't know how to plot that object...")
         artist = None
     return artist
+
+def _refresh_window():
+    """
+    Force the window to refresh, and optionally to show itself
+    if hidden (for recent matplotlibs)
+    """
+    plt.draw()
+    plt.show(block=False)
 
 def tkgui():
     """Launch the Tk GUI to WebbPSF"""
