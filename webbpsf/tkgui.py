@@ -568,8 +568,8 @@ class WebbPSFGUI(PSFGenerationGUI):
         #self.widgets['downsamp'] = ttk.Checkbutton(lf, text='Save in instr. pixel scale, too?', onvalue=True, offvalue=False,variable=self.vars['downsamp'])
         #self.widgets['downsamp'].grid(row=r, column=4, sticky='E')
 
-        output_options=['Oversampled PSF only', 'Oversampled + Detector Res. PSFs', 'Mock full image from JWST DMS']
-        self._add_labeled_dropdown("output_type", fr2, label='Output format:', values=output_options, default=output_options[1], width=31, position=(r,4), sticky='W')
+        # output_options=['Oversampled PSF only', 'Oversampled + Detector Res. PSFs', 'Mock full image from JWST DMS']
+        # self._add_labeled_dropdown("output_type", fr2, label='Output format:', values=output_options, default=output_options[1], width=31, position=(r,4), sticky='W')
 
 
         r+=1
@@ -624,12 +624,12 @@ class WebbPSFGUI(PSFGenerationGUI):
         self.fft_oversampling= int(self.widgets['fft_oversampling'].get())
         self.detector_oversampling= int(self.widgets['detector_oversampling'].get())
 
-        self.output_type = self.widgets['output_type'].get()
+        self.output_format = self.widgets['output_format'].get()
 
         options = {}
         #options['downsample'] = bool(self.vars['downsamp'])
-        options['rebin'] = not (self.output_type == 'Oversampled PSF only')  #was downsample, which seems wrong?
-        options['mock_dms'] = (self.output_type == 'Mock full image from JWST DMS')
+        options['rebin'] = not (self.output_format == 'Oversampled PSF only')  #was downsample, which seems wrong?
+        options['mock_dms'] = (self.output_format == 'Mock full image from JWST DMS')
         options['jitter'] = self.widgets['jitter'].get()
         #print "Downsamp value: ",  options['downsample']
 
