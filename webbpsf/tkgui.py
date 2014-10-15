@@ -30,10 +30,70 @@ except ImportError:
 import poppy
 from webbpsf import webbpsf_core
 
+class ConfigurationError(Exception):
+    pass
+
+class Options(object):
+    """
+    Options for GUI dropdowns
+
+    >>> calculation_options = Options(firstopt='First Option', \
+    >>>     secondopt='Second Option')
+    >>> calculation_options.firstopt
+    'First Option'
+    >>> calculation_options.names
+    ('First Option', 'Second Option')
+    >>> calculation_options.short_names
+    ('firstopt', 'secondopt')
+    >>> calculation_options.validate('First Option')
+    True
+    >>> calculation_options.validate('Not an Option')
+    False
+    """
+    def __init__(self, **kwargs):
+        """
+        Set attributes on the Options instance according to
+        kwargname=value for each keyword argument.
+        """
+        self.ordered_options = []
+        for key, value in kwargs.items():
+            if key in ['names', 'short_names', 'validate']:
+                # prevent accidental name collisions
+                raise ConfigurationError("The name {0} is in use by the API")
+            setattr(self, key, value)
+            self.ordered_options.append((key, value))
+    @property
+    def names(self):
+        """
+        Names defined for this set of options
+        """
+        return [long_name for short_name, long_name in self.ordered_options]
+    @property
+    def short_names(self):
+        """
+        Short (attribute) names defined for this set of options
+        """
+        return [short_name for short_name, long_name in self.ordered_options]
+    def validate(self, value):
+        """
+        Validates that `value` is a valid choice from these options
+        """
+        return (value in self.names)
+    def __len__(self):
+        return len(self.ordered_options)
+    def __getitem__(self, item):
+        return self.ordered_options[item]
+    def __iter__(self):
+        return self.names.__iter__()
 
 class PSFGenerationGUI(object):
     """Base Class for a PSF generation GUI using Tkinter & TTK native widgets"""
     def __init__(self):
+        # set basic options to defaults
+        self.field_of_view = 5
+        self.nlambda = None
+        self.detector_oversampling = 2
+        self.fft_oversampling = 2
         self.advanced_options = {
             'parity': 'any',
             'force_coron': False,
@@ -132,12 +192,12 @@ class PSFGenerationGUI(object):
             self.root,
             input_options=self.advanced_options
         )
-        if dialog.results is not None: # none means the user hit 'cancel'
+        if dialog.results is not None:  # none means the user hit 'cancel'
             self.advanced_options = dialog.results
 
     def ev_plot_spectrum(self):
         """Event handler for Plot Spectrum button"""
-        self._updateFromGUI()
+        self._update_from_gui()
 
         #sptype = self.widgets['SpType'].get()
         #iname = self.widgets[self.widgets['tabset'].select()]
@@ -203,22 +263,24 @@ class PSFGenerationGUI(object):
 
     def ev_calc_psf(self):
         """Event handler for PSF Calculations"""
-        self._updateFromGUI()
+        self._update_from_gui()
 
         if _HAS_PYSYNPHOT_DATA:
             source = poppy.specFromSpectralType(self.sptype)
         else:
             source = None # generic flat spectrum
 
+        _refresh_window()
+
         self.psf_hdulist = self.inst.calcPSF(
             source=source,
             detector_oversample=self.detector_oversampling,
             fft_oversample=self.fft_oversampling,
-            fov_arcsec=self.FOV,
+            fov_arcsec=self.field_of_view,
             nlambda=self.nlambda,
             display=True
         )
-        #self.PSF_HDUlist.display()
+
         for widgetname in ['Display PSF', 'Display profiles', 'Save PSF As...']:
             self.widgets[widgetname].state(['!disabled'])
         _refresh_window()
@@ -226,7 +288,7 @@ class PSFGenerationGUI(object):
 
     def ev_display_psf(self):
         """Event handler for displaying the PSF"""
-        #self._updateFromGUI()
+        #self._update_from_gui()
         #if self.PSF_HDUlist is not None:
         plt.clf()
         poppy.display_PSF(
@@ -241,13 +303,13 @@ class PSFGenerationGUI(object):
 
     def ev_display_profiles(self):
         """Event handler for displaying PSF encircled energy profiles"""
-        #self._updateFromGUI()
+        #self._update_from_gui()
         poppy.display_profiles(self.psf_hdulist)
         _refresh_window()
 
     def ev_display_optics(self):
         """Event handler for displaying the optical system"""
-        self._updateFromGUI()
+        self._update_from_gui()
         _log.info("Selected OPD is "+str(self.opd_name))
 
         plt.clf()
@@ -256,7 +318,7 @@ class PSFGenerationGUI(object):
 
     def ev_display_opd(self):
         """Event handler to display the OPD map"""
-        self._updateFromGUI()
+        self._update_from_gui()
         if self.inst.pupilopd is None:
             tkMessageBox.showwarning(
                 message="You currently have selected no OPD file (i.e. "
@@ -265,7 +327,7 @@ class PSFGenerationGUI(object):
             )
         else:
             if self._enable_opdserver and 'ITM' in self.opd_name:
-                # will contain the actual OPD loaded in _updateFromGUI above
+                # will contain the actual OPD loaded in _update_from_gui above
                 opd = self.inst.pupilopd
             else:
                 # in this case self.inst.pupilopd is a tuple with a string so
@@ -327,7 +389,7 @@ class PSFGenerationGUI(object):
             elif 'ITM' in widget_combobox.get() and not self._enable_opdserver:
                 header_summary = ("ITM Server is not running "
                                   "or otherwise unavailable.")
-            else: # other???
+            else:  # other???
                 header_summary = "   "
 
         widget_label.configure(text=header_summary, width=30)
@@ -338,24 +400,34 @@ class PSFGenerationGUI(object):
         else:
             self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
 
+    def _update_from_gui(self):
+        raise NotImplementedError("Subclasses must implement _update_from_gui")
+
 class WebbPSFGUI(PSFGenerationGUI):
     """ A GUI for the Webb PSF Simulator
 
     Documentation TBD!
 
     """
+    OUTPUT_OPTS = Options(
+        oversampled='Oversampled image',
+        detector_scale='Detector sampled image',
+        both_as_fits='Both as FITS extensions',
+        mock_jwst_dms='Mock JWST DMS Output'
+    )
     def __init__(self, opdserver=None):
         super(WebbPSFGUI, self).__init__()
-        insts = ['NIRCam', 'NIRSpec', 'NIRISS', 'MIRI', 'FGS']
-        for i in insts:
+        # this list defines the order of instrument tabs in the GUI
+        self.instrument_names = ['NIRCam', 'NIRSpec', 'NIRISS', 'MIRI', 'FGS']
+        for i in self.instrument_names:
             self.instrument[i] = webbpsf_core.Instrument(i)
+
         #invoke link to ITM server if provided?
         if opdserver is not None:
             self._enable_opdserver = True
             self._opdserver = opdserver
         else:
             self._enable_opdserver = False
-
 
         # create widgets & run
         self._create_widgets()
@@ -384,34 +456,9 @@ class WebbPSFGUI(PSFGenerationGUI):
         frame_root.grid(row=r, column=0, columnspan=5, sticky='W')
         source_labelframe.columnconfigure(2, weight=1)
         source_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
-    def _populate_instrument_config(self):
-        pass
-    def _populate_calculation_options(self):
-        pass
 
-    def _create_widgets(self):
-        """Create a nice GUI using the enhanced widget set provided by
-        the ttk extension to Tkinter, available in Python 2.7 or newer
-        """
-        #---- create the GUIs
-        insts = ['NIRCam', 'NIRSpec','NIRISS', 'MIRI',  'FGS']
-
-        self.root.title("James Webb Space Telescope PSF Calculator")
-
-        frame = ttk.Frame(self.root)
-        #frame = ttk.Frame(self.root, padx=10,pady=10)
-
-        #ttk.Label(frame, text='James Webb PSF Calculator' ).grid(row=0)
-        #-- star
-        source_labelframe = ttk.LabelFrame(frame, text='Source Properties')
-        self._populate_source_properties(source_labelframe)
-
-        #-- instruments
-        lf = ttk.LabelFrame(frame, text='Instrument Config')
-        notebook = ttk.Notebook(lf)
-        self.widgets['tabset'] = notebook
-        notebook.pack(fill='both')
-        for i, iname in enumerate(insts):
+    def _populate_instrument_config(self, notebook):
+        for i, iname in enumerate(self.instrument_names):
             page = ttk.Frame(notebook)
             notebook.add(page, text=iname)
             notebook.select(i)  # make it active
@@ -433,26 +480,8 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             ttk.Button(page, text='Display Optics', command=self.ev_display_optics ).grid(column=2, row=0, sticky='E', columnspan=3)
 
-
-            #if  iname != 'TFI':
             self._add_labeled_dropdown(iname+"_filter", page, label='    Filter:', values=self.instrument[iname].filter_list, default=self.instrument[iname].filter, width=12, position=(1,0), sticky='W')
-            #else:
-                #ttk.Label(page, text='Etalon wavelength: ' , state='disabled').grid(row=1, column=0, sticky='W')
-                #self.widgets[iname+"_wavelen"] = ttk.Entry(page, width=7) #, disabledforeground="#A0A0A0")
-                #self.widgets[iname+"_wavelen"].insert(0, str(self.instrument[iname].etalon_wavelength))
-                #self.widgets[iname+"_wavelen"].grid(row=1, column=1, sticky='W')
-                #ttk.Label(page, text=' um' ).grid(row=1, column=2, sticky='W')
 
-            #self.vars[iname+"_filter"] = tk.StringVar()
-            #self.widgets[iname+"_filter"] = ttk.Combobox(page,textvariable =self.vars[iname+"_filter"], width=10, state='readonly')
-            #self.widgets[iname+"_filter"]['values'] = self.instrument[iname].filter_list
-            #self.widgets[iname+"_filter"].set(self.instrument[iname].filter)
-            #self.widgets[iname+"_filter"]['readonly'] = True
-            #ttk.Label(page, text='    Filter: ' ).grid(row=1, column=0)
-            #self.widgets[iname+"_filter"].grid(row=1, column=1)
-
-
-            #if hasattr(self.instrument[iname], 'ifu_wavelength'):
             if iname == 'NIRSpec' or iname =='MIRI':
                 fr2 = ttk.Frame(page)
                 #label = 'IFU' if iname !='TFI' else 'TF'
@@ -473,26 +502,6 @@ class WebbPSFGUI(PSFGenerationGUI):
                 masks.insert(0, "")
 
                 self._add_labeled_dropdown(iname+"_coron", page, label='    Coron:', values=masks,  width=12, position=(2,0), sticky='W')
-                #self.vars[iname+"_coron"] = tk.StringVar()
-                #self.widgets[iname+"_coron"] = ttk.Combobox(page,textvariable =self.vars[iname+"_coron"], width=10, state='readonly')
-                #self.widgets[iname+"_coron"]['values'] = masks
-                #ttk.Label(page, text='    Coron: ' ).grid(row=2, column=0)
-                #self.widgets[iname+"_coron"].set(self.widgets[iname+"_coron"]['values'][0])
-                #self.widgets[iname+"_coron"].grid(row=2, column=1)
-
-                #fr2 = ttk.Frame(page)
-                #self.vars[iname+"_cor_off_r"] = tk.StringVar()
-                #self.vars[iname+"_cor_off_theta"] = tk.StringVar()
-                #ttk.Label(fr2, text='target offset:  r=' ).grid(row=2, column=4)
-                #self.widgets[iname+"_cor_off_r"] = ttk.Entry(fr2,textvariable =self.vars[iname+"_cor_off_r"], width=5)
-                #self.widgets[iname+"_cor_off_r"].insert(0,"0.0")
-                #self.widgets[iname+"_cor_off_r"].grid(row=2, column=5)
-                #ttk.Label(fr2, text='arcsec,  PA=' ).grid(row=2, column=6)
-                #self.widgets[iname+"_cor_off_theta"] = ttk.Entry(fr2,textvariable =self.vars[iname+"_cor_off_theta"], width=3)
-                #self.widgets[iname+"_cor_off_theta"].insert(0,"0")
-                #self.widgets[iname+"_cor_off_theta"].grid(row=2, column=7)
-                #ttk.Label(fr2, text='deg' ).grid(row=2, column=8)
-                #fr2.grid(row=2,column=3, sticky='W')
 
 
             if len(self.instrument[iname].image_mask_list) >0 :
@@ -513,7 +522,7 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             opd_list =  self.instrument[iname].opd_list
             opd_list.insert(0,"Zero OPD (perfect)")
-            #if os.getenv("WEBBPSF_ITM") or 1:
+
             if self._enable_opdserver:
                 opd_list.append("OPD from ITM Server")
             default_opd = self.instrument[iname].pupilopd if self.instrument[iname].pupilopd is not None else "Zero OPD (perfect)"
@@ -552,45 +561,74 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             fr2.grid(row=6, column=0, columnspan=4,sticky='SW')
             self.widgets[iname+"_itm_coords"] = fr2
+    def _populate_calculation_options(self, calc_opts_root):
+        r = 0
+        self._add_labeled_entry(
+            'FOV',
+            calc_opts_root,
+            label='Field of View:',
+            width=3,
+            value=str(self.field_of_view),
+            postlabel='arcsec/side',
+            position=(r,0),
+        )
+        r += 1
+        self._add_labeled_entry('detector_oversampling', calc_opts_root, label='Output Oversampling:',  width=3, value=str(self.detector_oversampling), postlabel='x finer than instrument pixels       ', position=(r,0))
+        r += 1
+        self._add_labeled_entry('fft_oversampling', calc_opts_root, label='Coronagraph FFT Oversampling:',  width=3, value=str(self.fft_oversampling), postlabel='x finer than Nyquist', position=(r,0))
+        r += 1
+        self._add_labeled_entry('nlambda', calc_opts_root, label='# of wavelengths:',  width=3, value='', position=(r,0), postlabel='Leave blank for autoselect')
+        r += 1
 
+        self._add_labeled_dropdown("jitter", calc_opts_root, label='Jitter model:', values=  ['Just use OPDs' ], width=20, position=(r,0), sticky='W', columnspan=2)
+        r += 1
+        self._add_labeled_dropdown("output_format", calc_opts_root, label='Output Format:', values=self.OUTPUT_OPTS.names, width=30, position=(r,0), sticky='W', columnspan=2)
+        #self._add_labeled_dropdown("jitter", lf, label='Jitter model:', values=  ['Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid'], width=20, position=(r,0), sticky='W', columnspan=2)
+
+        calc_opts_root.grid(row=4, sticky='E,W', padx=10, pady=5)
+
+
+
+    def _create_widgets(self):
+        """Create a nice GUI using the enhanced widget set provided by
+        the ttk extension to Tkinter, available in Python 2.7 or newer
+        """
+        #---- create the GUIs
+        self.root.title("James Webb Space Telescope PSF Calculator")
+
+        frame = ttk.Frame(self.root)
+
+        #-- source properties
+        source_labelframe = ttk.LabelFrame(frame, text='Source Properties')
+        self._populate_source_properties(source_labelframe)
+
+        #-- instrument config
+        lf = ttk.LabelFrame(frame, text='Instrument Config')
+        notebook = ttk.Notebook(lf)
+        self.widgets['tabset'] = notebook
+        notebook.pack(fill='both')
+
+        self._populate_instrument_config(notebook)
 
         self.ev_update_opd_labels()
         lf.grid(row=2, sticky='E,W', padx=10, pady=5)
         notebook.select(0)
 
-        lf = ttk.LabelFrame(frame, text='Calculation Options')
-        r =0
-        self._add_labeled_entry('FOV', lf, label='Field of View:',  width=3, value='5', postlabel='arcsec/side', position=(r,0))
-        r+=1
-        self._add_labeled_entry('detector_oversampling', lf, label='Output Oversampling:',  width=3, value='2', postlabel='x finer than instrument pixels       ', position=(r,0))
+        #-- calculation options
 
-        #self.vars['downsamp'] = tk.BooleanVar()
-        #self.vars['downsamp'].set(True)
-        #self.widgets['downsamp'] = ttk.Checkbutton(lf, text='Save in instr. pixel scale, too?', onvalue=True, offvalue=False,variable=self.vars['downsamp'])
-        #self.widgets['downsamp'].grid(row=r, column=4, sticky='E')
+        calc_options_frame = ttk.LabelFrame(frame, text='Calculation Options')
+        self._populate_calculation_options(calc_options_frame)
+        calc_options_frame.columnconfigure(2, weight=1)
+        calc_options_frame.columnconfigure(4, weight=1)
+        calc_options_frame.grid(row=5, sticky='E,W', padx=10, pady=15)
 
-        # output_options=['Oversampled PSF only', 'Oversampled + Detector Res. PSFs', 'Mock full image from JWST DMS']
-        # self._add_labeled_dropdown("output_type", fr2, label='Output format:', values=output_options, default=output_options[1], width=31, position=(r,4), sticky='W')
-
-
-        r+=1
-        self._add_labeled_entry('fft_oversampling', lf, label='Coronagraph FFT Oversampling:',  width=3, value='2', postlabel='x finer than Nyquist', position=(r,0))
-        r+=1
-        self._add_labeled_entry('nlambda', lf, label='# of wavelengths:',  width=3, value='', position=(r,0), postlabel='Leave blank for autoselect')
-        r+=1
-
-        self._add_labeled_dropdown("jitter", lf, label='Jitter model:', values=  ['Just use OPDs' ], width=20, position=(r,0), sticky='W', columnspan=2)
-        r+=1
-        self._add_labeled_dropdown("output_format", lf, label='Output Format:', values=  ['Oversampled image','Detector sampled image','Both as FITS extensions', 'Mock JWST DMS Output' ], width=30, position=(r,0), sticky='W', columnspan=2)
-        #self._add_labeled_dropdown("jitter", lf, label='Jitter model:', values=  ['Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid'], width=20, position=(r,0), sticky='W', columnspan=2)
-
-        lf.grid(row=4, sticky='E,W', padx=10, pady=5)
-
-        lf = ttk.Frame(frame)
+        #-- control buttons
+        control_buttons_frame = ttk.Frame(frame)
 
         def addbutton(text, command, pos, disabled=False):
             """Shorthand inner function for adding buttons"""
-            self.widgets[text] = ttk.Button(lf, text=text, command=command )
+            self.widgets[text] = ttk.Button(control_buttons_frame,
+                                            text=text, command=command)
             self.widgets[text].grid(column=pos, row=0, sticky='E')
             if disabled:
                 self.widgets[text].state(['disabled'])
@@ -601,17 +639,18 @@ class WebbPSFGUI(PSFGenerationGUI):
         addbutton('Save PSF As...', self.ev_save_as, 3, disabled=True)
         addbutton('More options...', self.ev_options, 4, disabled=False)
 
-        ttk.Button(lf, text='Quit', command=self.quit).grid(column=5, row=0)
-        lf.columnconfigure(2, weight=1)
-        lf.columnconfigure(4, weight=1)
-        lf.grid(row=5, sticky='E,W', padx=10, pady=15)
+        ttk.Button(control_buttons_frame, text='Quit', command=self.quit).grid(column=5, row=0)
+        control_buttons_frame.columnconfigure(2, weight=1)
+        control_buttons_frame.columnconfigure(4, weight=1)
+        control_buttons_frame.grid(row=6, sticky='E,W', padx=10, pady=15)
 
         frame.grid(row=0, sticky='N,E,S,W')
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-    def _updateFromGUI(self):
+
+    def _update_from_gui(self):
         # get GUI values
         if _HAS_PYSYNPHOT_DATA:
             self.sptype = self.widgets['SpType'].get()
@@ -621,7 +660,7 @@ class WebbPSFGUI(PSFGenerationGUI):
             self.nlambda= int(self.widgets['nlambda'].get())
         except:
             self.nlambda = None # invoke autoselect for nlambda
-        self.FOV= float(self.widgets['FOV'].get())
+        self.field_of_view = float(self.widgets['FOV'].get())
         self.fft_oversampling= int(self.widgets['fft_oversampling'].get())
         self.detector_oversampling= int(self.widgets['detector_oversampling'].get())
 
@@ -684,13 +723,26 @@ class WebbPSFGUI(PSFGenerationGUI):
 
 class Dialog(tk.Toplevel):
     """
-    Base class for a modal dialog box.
+    PSF generation GUI options dialog
 
-    From example code at
+    Based on example code from
     <http://effbot.org/tkinterbook/tkinter-dialog-windows.htm>
     """
 
     def __init__(self, parent, title=None, input_options=None):
+        self.results = None # in case we cancel this gets returned
+        self.vars = {}
+        self.widgets = {}
+
+        self.colortables = {
+            'Jet (blue to red)': matplotlib.cm.jet,
+            'Gray': matplotlib.cm.gray,
+            'Heat (black-red-yellow)': matplotlib.cm.gist_heat,
+            'Copper (black to tan)': matplotlib.cm.copper,
+            'Stern': matplotlib.cm.gist_stern,
+            'Prism (repeating rainbow)': matplotlib.cm.prism,
+        }
+
         tk.Toplevel.__init__(self, parent)
         self.transient(parent)
         self.input_options = input_options
@@ -815,15 +867,21 @@ class Dialog(tk.Toplevel):
     def apply(self):
         raise NotImplementedError("Dialog subclasses must implement apply()")
 
+PROPAGATION_OPTS = Options(
+    mft='regular propagation (MFT)',
+    full='full coronographic propagation (FFT/SAM)'
+)
+SEMI_ANALYTIC_OPTS = Options(
+    semi_analytic='semi-analytic method if possible',
+    basic_fft='basic FFT method always'
+)
+PARITY_OPTS = Options(
+    odd='odd',
+    even='even',
+    either='either'
+)
 
 class WebbPSFOptionsDialog(Dialog):
-    CORONOGRAPH_MFT = 'regular propagation (MFT)'
-    CORONOGRAPH_FULL = 'full coronographic propagation (FFT/SAM)'
-    CORONOGRAPH_CALC_OPTS = [CORONOGRAPH_MFT, CORONOGRAPH_FULL]
-    USE_SEMI_ANALYTIC = 'semi-analytic method if possible'
-    USE_BASIC_FFT = 'basic FFT method always'
-    CHOOSE_SEMI_ANALYTIC_OPTS = [USE_SEMI_ANALYTIC, USE_BASIC_FFT]
-
     def __init__(self, *args, **kwargs):
         self.results = None
         # TODO:jlong: Dialog inherits from an old-style class, unclear how to
@@ -831,84 +889,83 @@ class WebbPSFOptionsDialog(Dialog):
         Dialog.__init__(self, *args, **kwargs)
 
     def body(self, master):
-        self.results = None # in case we cancel this gets returned
-        self.vars = {}
-        self.widgets = {}
-        self.values = {}
-
-        self.colortables = {
-            'Jet (blue to red)': matplotlib.cm.jet,
-            'Gray': matplotlib.cm.gray,
-            'Heat (black-red-yellow)': matplotlib.cm.gist_heat,
-            'Copper (black to tan)': matplotlib.cm.copper,
-            'Stern': matplotlib.cm.gist_stern,
-            'Prism (repeating rainbow)': matplotlib.cm.prism,
-        }
-
-        lf = ttk.LabelFrame(master, text='WebbPSF Advanced Options')
+        calc_options_labelframe = ttk.LabelFrame(master, text='WebbPSF Advanced Options')
 
         row_counter = 0
-        fr2 = ttk.Frame(lf)
-
-        self.values['force_coron'] = self.CORONOGRAPH_CALC_OPTS
-        force_coron_idx = 1 if self.input_options['force_coron'] else 0
         self._add_labeled_dropdown(
             "force_coron",
-            lf,
+            calc_options_labelframe,
             label='Direct imaging calculations use',
-            values=self.values['force_coron'],
-            default=(self.CORONOGRAPH_FULL if self.input_options['force_coron']
-                     else self.CORONOGRAPH_MFT),
+            values=PROPAGATION_OPTS,
+            default=(PROPAGATION_OPTS.full if self.input_options['force_coron']
+                     else PROPAGATION_OPTS.mft),
             width=30,
             position=(row_counter, 0),
             sticky='W'
         )
         row_counter += 1
-        self.values['no_sam'] = ['semi-analytic method if possible', 'basic FFT method always']
-        self._add_labeled_dropdown("no_sam", lf, label='Coronagraphic calculations use', values=self.values['no_sam'],
-                default=self.values['no_sam'][ 1 if self.input_options['no_sam'] else 0] , width=30, position=(row_counter,0), sticky='W')
+        self._add_labeled_dropdown(
+            "no_sam",
+            calc_options_labelframe,
+            label='Coronagraphic calculations use',
+            values=SEMI_ANALYTIC_OPTS,
+            default=(SEMI_ANALYTIC_OPTS.basic_fft if self.input_options['no_sam']
+                     else SEMI_ANALYTIC_OPTS.semi_analytic),
+            width=30,
+            position=(row_counter, 0),
+            sticky='W'
+        )
         row_counter += 1
-        self._add_labeled_dropdown("parity", lf, label='Output pixel grid parity is', values=['odd', 'even', 'either'], default=self.input_options['parity'], width=10, position=(row_counter,0), sticky='W')
+        self._add_labeled_dropdown(
+            "parity",
+            calc_options_labelframe,
+            label='Output pixel grid parity is',
+            values=PARITY_OPTS,
+            default=self.input_options['parity'],
+            width=10,
+            position=(row_counter, 0),
+            sticky='W'
+        )
 
+        calc_options_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
 
-
-        lf.grid(row=1, sticky='E,W', padx=10,pady=5)
-
-        lf = ttk.LabelFrame(master, text='PSF Display Options')
+        display_options_labelframe = ttk.LabelFrame(master, text='PSF Display Options')
         row_counter = 0
         self._add_labeled_dropdown(
             "psf_scale",
-            lf,
+            display_options_labelframe,
             label='    Display scale:',
             values=['log','linear'],
             default=self.input_options['psf_scale'],
             width=5, position=(row_counter, 0), sticky='W'
         )
         row_counter += 1
-        self._add_labeled_entry("psf_vmin", lf, label='    Min scale value:', value="%.2g" % self.input_options['psf_vmin'], width=7, position=(row_counter,0), sticky='W')
+        self._add_labeled_entry("psf_vmin", display_options_labelframe, label='    Min scale value:', value="%.2g" % self.input_options['psf_vmin'], width=7, position=(row_counter,0), sticky='W')
         row_counter += 1
-        self._add_labeled_entry("psf_vmax", lf, label='    Max scale value:', value="%.2g" % self.input_options['psf_vmax'], width=7, position=(row_counter,0), sticky='W')
+        self._add_labeled_entry("psf_vmax", display_options_labelframe, label='    Max scale value:', value="%.2g" % self.input_options['psf_vmax'], width=7, position=(row_counter,0), sticky='W')
         row_counter += 1
-        self._add_labeled_dropdown("psf_normalize", lf, label='    Normalize PSF to:', values=['Total', 'Peak'], default=self.input_options['psf_normalize'], width=5, position=(row_counter,0), sticky='W')
+        self._add_labeled_dropdown("psf_normalize", display_options_labelframe, label='    Normalize PSF to:', values=['Total', 'Peak'], default=self.input_options['psf_normalize'], width=5, position=(row_counter,0), sticky='W')
         row_counter += 1
-        self._add_labeled_dropdown("psf_cmap", lf, label='    Color table:', values=[a[0] for a in self.colortables],  default=self.input_options['psf_cmap_str'], width=20, position=(row_counter,0), sticky='W')
-        lf.grid(row=2, sticky='E,W', padx=10,pady=5)
+        self._add_labeled_dropdown("psf_cmap", display_options_labelframe, label='    Color table:', values=[a[0] for a in self.colortables],  default=self.input_options['psf_cmap_str'], width=20, position=(row_counter,0), sticky='W')
+        display_options_labelframe.grid(row=2, sticky='E,W', padx=10,pady=5)
 
 
-        return self.widgets['force_coron']# return widget to have initial focus
+        return self.widgets['force_coron']  # return widget to have initial focus
 
     def apply(self, test=False):
+        results = {
+            'force_coron': self.vars['force_coron'].get() == PROPAGATION_OPTS.full,
+            'no_sam': self.vars['no_sam'].get() == SEMI_ANALYTIC_OPTS.basic,
+            'parity': self.vars['parity'].get(),
+            'psf_scale': self.vars['psf_scale'].get(),
+            'psf_cmap_str': self.vars['psf_cmap'].get(),
+            'psf_normalize': self.vars['psf_normalize'].get(),
+            'psf_cmap': self.colortables[str(self.vars['psf_cmap'].get())],
+        }
+
         try:
-            results = {}
-            results['force_coron'] = self.vars['force_coron'].get() == 'full coronagraphic propagation (FFT/SAM)'
-            results['no_sam'] = self.vars['no_sam'].get() == 'basic FFT method always'
-            results['parity'] = self.vars['parity'].get()
-            results['psf_scale'] = self.vars['psf_scale'].get()
             results['psf_vmax'] = float(self.vars['psf_vmax'].get())
             results['psf_vmin'] = float(self.vars['psf_vmin'].get())
-            results['psf_cmap_str'] = self.vars['psf_cmap'].get()
-            results['psf_normalize'] = self.vars['psf_normalize'].get()
-            results['psf_cmap'] = self.colortables[str(self.vars['psf_cmap'].get())]
         # TODO:jlong: validate interactively
         # http://stackoverflow.com/questions/4140437/
         except ValueError:
@@ -926,6 +983,7 @@ class WebbPSFOptionsDialog(Dialog):
         return can_apply
 
 #-------------------------------------------------------------------------
+
 
 def synplot(thing, waveunit='micron', label=None, **kwargs):
     """
@@ -958,6 +1016,7 @@ def synplot(thing, waveunit='micron', label=None, **kwargs):
         artist = None
     return artist
 
+
 def _refresh_window():
     """
     Force the window to refresh, and optionally to show itself
@@ -965,6 +1024,7 @@ def _refresh_window():
     """
     plt.draw()
     plt.show(block=False)
+
 
 def tkgui():
     """Launch the Tk GUI to WebbPSF"""
