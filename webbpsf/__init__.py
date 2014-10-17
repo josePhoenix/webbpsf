@@ -85,7 +85,7 @@ from poppy import (display_PSF, display_PSF_difference, display_EE, display_prof
         specFromSpectralType, fwcentroid)
 
 from .webbpsf_core import (Instrument, JWInstrument, NIRCam, NIRISS, NIRSpec,
-    MIRI, FGS, WFIRSTImager)
+    MIRI, FGS)
 
 from . import utils
 from .utils import setup_logging #, _system_diagnostic, _check_for_new_install, _restart_logging

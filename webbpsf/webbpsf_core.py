@@ -16,14 +16,9 @@ Classes:
       * NIRSpec
       * NIRISS
       * FGS
-    * WFIRSTInstrument
-      * WFIRSTImager
-      * WFIRSTSpectrograph
-
 
 WebbPSF makes use of python's ``logging`` facility for log messages, using
 the logger name "webbpsf".
-
 
 Code by Marshall Perrin <mperrin@stsci.edu>
 """

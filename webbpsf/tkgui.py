@@ -67,13 +67,13 @@ class Options(object):
         """
         Names defined for this set of options
         """
-        return [long_name for short_name, long_name in self.ordered_options]
+        return [long_name for _, long_name in self.ordered_options]
     @property
     def short_names(self):
         """
         Short (attribute) names defined for this set of options
         """
-        return [short_name for short_name, long_name in self.ordered_options]
+        return [short_name for short_name, _ in self.ordered_options]
     def validate(self, value):
         """
         Validates that `value` is a valid choice from these options
@@ -85,6 +85,60 @@ class Options(object):
         return self.ordered_options[item]
     def __iter__(self):
         return self.names.__iter__()
+
+
+# Control-building helpers
+
+def _add_labeled_dropdown(controller, name, root, label="Entry:", label_pad=(1, 1), values=None,
+                          width=5, position=(0, 0), default=None, **kwargs):
+    """Convenient wrapper for adding a labeled Combobox"""
+
+    ttk.Label(root, text=label).grid(
+        row=position[0],
+        column=position[1],
+        sticky='W',
+        padx=label_pad
+    )
+
+    controller.vars[name] = tk.StringVar()
+    controller.widgets[name] = ttk.Combobox(
+        root,
+        textvariable=controller.vars[name],
+        width=width,
+        state='readonly'
+    )
+    controller.widgets[name].grid(row=position[0], column=position[1] + 1, **kwargs)
+    controller.widgets[name]['values'] = values
+
+    if default is None:
+        default = values[0]
+    controller.widgets[name].set(default)
+
+def _add_labeled_entry(controller, name, root, label="Entry:", label_pad=(1, 1), value="",
+                       width=5, position=(0, 0), postlabel=None, **kwargs):
+    """Convenient wrapper for adding a labeled Entry"""
+    ttk.Label(root, text=label).grid(
+        row=position[0],
+        column=position[1],
+        sticky='W'
+    )
+
+    controller.vars[name] = tk.StringVar()
+    controller.widgets[name] = ttk.Entry(
+        root,
+        textvariable=controller.vars[name],
+        width=width
+    )
+    controller.widgets[name].insert(0, value)
+    controller.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
+
+    if postlabel is not None:
+        ttk.Label(root, text=postlabel).grid(
+            row=position[0],
+            column=position[1]+2,
+            sticky='W'
+        )
+
 
 class PSFGenerationGUI(object):
     """Base Class for a PSF generation GUI using Tkinter & TTK native widgets"""
@@ -115,54 +169,122 @@ class PSFGenerationGUI(object):
         self.root = tk.Tk()
         self.root.geometry('+50+50')
 
-    def _add_labeled_dropdown(self, name, root, label="Entry:", values=None,
-                              default=None, width=5, position=(0, 0), **kwargs):
-        """Convenient wrapper for adding a labeled Combobox"""
+    def mainloop(self):
+        self.root.mainloop()
 
-        ttk.Label(root, text=label).grid(
-            row=position[0],
-            column=position[1],
-            sticky='W'
+    def _create_widgets(self):
+        """Create a nice GUI using the enhanced widget set provided by
+        the ttk extension to Tkinter, available in Python 2.7 or newer
+        """
+        #---- create the GUIs
+        self.root.title("James Webb Space Telescope PSF Calculator")
+
+        frame = ttk.Frame(self.root)
+
+        #-- source properties
+        source_labelframe = ttk.LabelFrame(frame, text='Source Properties')
+        self._populate_source_properties(source_labelframe)
+        source_labelframe.columnconfigure(2, weight=1)
+        source_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
+
+        #-- instrument config
+        lf = ttk.LabelFrame(frame, text='Instrument Config')
+        notebook = ttk.Notebook(lf)
+        self.widgets['tabset'] = notebook
+        notebook.pack(fill='both')
+
+        self._populate_instrument_config(notebook)
+
+        self.ev_update_opd_labels()
+        lf.grid(row=2, sticky='E,W', padx=10, pady=5)
+        notebook.select(0)
+
+        #-- calculation options
+
+        calc_options_frame = ttk.LabelFrame(frame, text='Calculation Options')
+        self._populate_calculation_options(calc_options_frame)
+        calc_options_frame.columnconfigure(2, weight=1)
+        calc_options_frame.columnconfigure(4, weight=1)
+        calc_options_frame.grid(row=5, sticky='E,W', padx=10, pady=15)
+
+        #-- control buttons
+        control_buttons_frame = ttk.Frame(frame)
+
+        def addbutton(text, command, pos, disabled=False):
+            """Shorthand inner function for adding buttons"""
+            self.widgets[text] = ttk.Button(control_buttons_frame, text=text, command=command)
+            self.widgets[text].grid(column=pos, row=0, sticky='E')
+            if disabled:
+                self.widgets[text].state(['disabled'])
+
+        addbutton('Compute PSF', self.ev_calc_psf, 0)
+        addbutton('Display PSF', self.ev_display_psf, 1, disabled=True)
+        addbutton('Display profiles', self.ev_display_profiles, 2, disabled=True)
+        addbutton('Save PSF As...', self.ev_save_as, 3, disabled=True)
+        addbutton('More options...', self.ev_options, 4, disabled=False)
+
+        ttk.Button(control_buttons_frame, text='Quit', command=self.quit).grid(column=5, row=0)
+        control_buttons_frame.columnconfigure(2, weight=1)
+        control_buttons_frame.columnconfigure(4, weight=1)
+        control_buttons_frame.grid(row=6, sticky='E,W', padx=10, pady=15)
+
+        frame.grid(row=0, sticky='N,E,S,W')
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
+    def _populate_source_properties(self, source_labelframe):
+
+        if _HAS_PYSYNPHOT_DATA:
+            _add_labeled_dropdown(self, "SpType", source_labelframe, label='    Spectral Type:', values=poppy.specFromSpectralType("",return_list=True), default='G0V', width=25, position=(0,0), sticky='W')
+            ttk.Button(source_labelframe, text='Plot spectrum', command=self.ev_plot_spectrum).grid(row=0, column=2, sticky='E', columnspan=4)
+
+        r = 1
+        frame_root = ttk.Frame(source_labelframe)
+
+        _add_labeled_entry(self, "source_off_r", frame_root, label='    Source Position: r=', value='0.0', width=5, position=(r,0), sticky='W')
+        _add_labeled_entry(self, "source_off_theta", frame_root, label='arcsec,  PA=', value='0', width=3, position=(r,2), sticky='W')
+
+        self.vars["source_off_centerpos"] = tk.StringVar()
+        self.vars["source_off_centerpos"].set('corner')
+
+        ttk.Label(frame_root, text='deg, centered on ' ).grid(row=r, column=4)
+        pixel = ttk.Radiobutton(frame_root, text='pixel', variable=self.vars["source_off_centerpos"], value='pixel')
+        pixel.grid(row=r, column=5)
+        corner = ttk.Radiobutton(frame_root, text='corner', variable=self.vars["source_off_centerpos"], value='corner')
+        corner.grid(row=r, column=6)
+        frame_root.grid(row=r, column=0, columnspan=5, sticky='W')
+    def _populate_calculation_options(self, calc_opts_root):
+        r = 0
+        _add_labeled_entry(
+            self,
+            'FOV',
+            calc_opts_root,
+            label='Field of View:',
+            width=3,
+            value=str(self.field_of_view),
+            postlabel='arcsec/side',
+            position=(r,0),
         )
+        r += 1
+        _add_labeled_entry(self, 'detector_oversampling', calc_opts_root, label='Output Oversampling:',  width=3, value=str(self.detector_oversampling), postlabel='x finer than instrument pixels       ', position=(r,0))
+        r += 1
+        _add_labeled_entry(self, 'fft_oversampling', calc_opts_root, label='Coronagraph FFT Oversampling:',  width=3, value=str(self.fft_oversampling), postlabel='x finer than Nyquist', position=(r,0))
+        r += 1
+        _add_labeled_entry(self, 'nlambda', calc_opts_root, label='# of wavelengths:',  width=3, value='', position=(r,0), postlabel='Leave blank for autoselect')
+        r += 1
 
-        self.vars[name] = tk.StringVar()
-        self.widgets[name] = ttk.Combobox(
-            root,
-            textvariable=self.vars[name],
-            width=width,
-            state='readonly'
-        )
-        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
-        self.widgets[name]['values'] = values
+        _add_labeled_dropdown(self, "jitter", calc_opts_root, label='Jitter model:', values=  ['Just use OPDs' ], width=20, position=(r,0), sticky='W', columnspan=2)
+        r += 1
+        _add_labeled_dropdown(self, "output_format", calc_opts_root, label='Output Format:', values=self.OUTPUT_OPTS.names, width=30, position=(r,0), sticky='W', columnspan=2)
+        #_add_labeled_dropdown(self, "jitter", lf, label='Jitter model:', values=  ['Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid'], width=20, position=(r,0), sticky='W', columnspan=2)
 
-        if default is None:
-            default = values[0]
-        self.widgets[name].set(default)
+        calc_opts_root.grid(row=4, sticky='E,W', padx=10, pady=5)
 
-    def _add_labeled_entry(self, name, root, label="Entry:", value="",
-                           width=5, position=(0, 0), postlabel=None, **kwargs):
-        """Convenient wrapper for adding a labeled Entry"""
-        ttk.Label(root, text=label).grid(
-            row=position[0],
-            column=position[1],
-            sticky='W'
-        )
 
-        self.vars[name] = tk.StringVar()
-        self.widgets[name] = ttk.Entry(
-            root,
-            textvariable=self.vars[name],
-            width=width
-        )
-        self.widgets[name].insert(0, value)
-        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
 
-        if postlabel is not None:
-            ttk.Label(root, text=postlabel).grid(
-                row=position[0],
-                column=position[1]+2,
-                sticky='W'
-            )
+
 
     def quit(self):
         """Quit the GUI"""
@@ -192,8 +314,7 @@ class PSFGenerationGUI(object):
             self.root,
             input_options=self.advanced_options
         )
-        if dialog.results is not None:  # none means the user hit 'cancel'
-            self.advanced_options = dialog.results
+        self.advanced_options = dialog.results
 
     def ev_plot_spectrum(self):
         """Event handler for Plot Spectrum button"""
@@ -433,29 +554,7 @@ class WebbPSFGUI(PSFGenerationGUI):
         self._create_widgets()
         self.root.update()
 
-    def _populate_source_properties(self, source_labelframe):
 
-        if _HAS_PYSYNPHOT_DATA:
-            self._add_labeled_dropdown("SpType", source_labelframe, label='    Spectral Type:', values=poppy.specFromSpectralType("",return_list=True), default='G0V', width=25, position=(0,0), sticky='W')
-            ttk.Button(source_labelframe, text='Plot spectrum', command=self.ev_plot_spectrum).grid(row=0, column=2, sticky='E', columnspan=4)
-
-        r = 1
-        frame_root = ttk.Frame(source_labelframe)
-
-        self._add_labeled_entry("source_off_r", frame_root, label='    Source Position: r=', value='0.0', width=5, position=(r,0), sticky='W')
-        self._add_labeled_entry("source_off_theta", frame_root, label='arcsec,  PA=', value='0', width=3, position=(r,2), sticky='W')
-
-        self.vars["source_off_centerpos"] = tk.StringVar()
-        self.vars["source_off_centerpos"].set('corner')
-
-        ttk.Label(frame_root, text='deg, centered on ' ).grid(row=r, column=4)
-        pixel = ttk.Radiobutton(frame_root, text='pixel', variable=self.vars["source_off_centerpos"], value='pixel')
-        pixel.grid(row=r, column=5)
-        corner = ttk.Radiobutton(frame_root, text='corner', variable=self.vars["source_off_centerpos"], value='corner')
-        corner.grid(row=r, column=6)
-        frame_root.grid(row=r, column=0, columnspan=5, sticky='W')
-        source_labelframe.columnconfigure(2, weight=1)
-        source_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
 
     def _populate_instrument_config(self, notebook):
         for i, iname in enumerate(self.instrument_names):
@@ -480,7 +579,7 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             ttk.Button(page, text='Display Optics', command=self.ev_display_optics ).grid(column=2, row=0, sticky='E', columnspan=3)
 
-            self._add_labeled_dropdown(iname+"_filter", page, label='    Filter:', values=self.instrument[iname].filter_list, default=self.instrument[iname].filter, width=12, position=(1,0), sticky='W')
+            _add_labeled_dropdown(self, iname+"_filter", page, label='    Filter:', values=self.instrument[iname].filter_list, default=self.instrument[iname].filter, width=12, position=(1,0), sticky='W')
 
             if iname == 'NIRSpec' or iname =='MIRI':
                 fr2 = ttk.Frame(page)
@@ -501,17 +600,17 @@ class WebbPSFGUI(PSFGenerationGUI):
                 masks = self.instrument[iname].image_mask_list
                 masks.insert(0, "")
 
-                self._add_labeled_dropdown(iname+"_coron", page, label='    Coron:', values=masks,  width=12, position=(2,0), sticky='W')
+                _add_labeled_dropdown(self, iname+"_coron", page, label='    Coron:', values=masks,  width=12, position=(2,0), sticky='W')
 
 
             if len(self.instrument[iname].image_mask_list) >0 :
                 masks = self.instrument[iname].pupil_mask_list
                 masks.insert(0, "")
-                self._add_labeled_dropdown(iname+"_pupil", page, label='    Pupil:', values=masks,  width=12, position=(3,0), sticky='W')
+                _add_labeled_dropdown(self, iname+"_pupil", page, label='    Pupil:', values=masks,  width=12, position=(3,0), sticky='W')
 
                 fr2 = ttk.Frame(page)
-                self._add_labeled_entry(iname+"_pupilshift_x", fr2, label='  pupil shift in X:', value='0', width=3, position=(3,4), sticky='W')
-                self._add_labeled_entry(iname+"_pupilshift_y", fr2, label=' Y:', value='0', width=3, position=(3,6), sticky='W')
+                _add_labeled_entry(self, iname+"_pupilshift_x", fr2, label='  pupil shift in X:', value='0', width=3, position=(3,4), sticky='W')
+                _add_labeled_entry(self, iname+"_pupilshift_y", fr2, label=' Y:', value='0', width=3, position=(3,6), sticky='W')
 
                 ttk.Label(fr2, text='% of pupil' ).grid(row=3, column=8)
                 fr2.grid(row=3,column=3, sticky='W')
@@ -526,9 +625,9 @@ class WebbPSFGUI(PSFGenerationGUI):
             if self._enable_opdserver:
                 opd_list.append("OPD from ITM Server")
             default_opd = self.instrument[iname].pupilopd if self.instrument[iname].pupilopd is not None else "Zero OPD (perfect)"
-            self._add_labeled_dropdown(iname+"_opd", fr2, label='    OPD File:', values=opd_list, default=default_opd, width=21, position=(0,0), sticky='W')
+            _add_labeled_dropdown(self, iname+"_opd", fr2, label='    OPD File:', values=opd_list, default=default_opd, width=21, position=(0,0), sticky='W')
 
-            self._add_labeled_dropdown(iname+"_opd_i", fr2, label=' # ', values= [str(i) for i in range(10)], width=3, position=(0,2), sticky='W')
+            _add_labeled_dropdown(self, iname+"_opd_i", fr2, label=' # ', values= [str(i) for i in range(10)], width=3, position=(0,2), sticky='W')
 
             self.widgets[iname+"_opd_label"] = ttk.Label(fr2, text=' 0 nm RMS            ', width=35)
             self.widgets[iname+"_opd_label"].grid( column=4,sticky='W', row=0)
@@ -546,11 +645,11 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             # ITM interface here - build the widgets now but they will be hidden by default until the ITM option is selected
             fr2 = ttk.Frame(page)
-            self._add_labeled_entry(iname+"_coords", fr2, label='    Source location:', value='0, 0', width=12, position=(1,0), sticky='W')
+            _add_labeled_entry(self, iname+"_coords", fr2, label='    Source location:', value='0, 0', width=12, position=(1,0), sticky='W')
             units_list = ['V1,V2 coords', 'detector pixels']
-            self._add_labeled_dropdown(iname+"_coord_units", fr2, label='in:', values=units_list, default=units_list[0], width=11, position=(1,2), sticky='W')
+            _add_labeled_dropdown(self, iname+"_coord_units", fr2, label='in:', values=units_list, default=units_list[0], width=11, position=(1,2), sticky='W')
             choose_list=['', 'SI center', 'SI upper left corner', 'SI upper right corner', 'SI lower left corner', 'SI lower right corner']
-            self._add_labeled_dropdown(iname+"_coord_choose", fr2, label='or select:', values=choose_list, default=choose_list[0], width=21, position=(1,4), sticky='W')
+            _add_labeled_dropdown(self, iname+"_coord_choose", fr2, label='or select:', values=choose_list, default=choose_list[0], width=21, position=(1,4), sticky='W')
 
 
             ttk.Label(fr2, text='    ITM output:').grid(row=2, column=0, sticky='W')
@@ -561,94 +660,6 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             fr2.grid(row=6, column=0, columnspan=4,sticky='SW')
             self.widgets[iname+"_itm_coords"] = fr2
-    def _populate_calculation_options(self, calc_opts_root):
-        r = 0
-        self._add_labeled_entry(
-            'FOV',
-            calc_opts_root,
-            label='Field of View:',
-            width=3,
-            value=str(self.field_of_view),
-            postlabel='arcsec/side',
-            position=(r,0),
-        )
-        r += 1
-        self._add_labeled_entry('detector_oversampling', calc_opts_root, label='Output Oversampling:',  width=3, value=str(self.detector_oversampling), postlabel='x finer than instrument pixels       ', position=(r,0))
-        r += 1
-        self._add_labeled_entry('fft_oversampling', calc_opts_root, label='Coronagraph FFT Oversampling:',  width=3, value=str(self.fft_oversampling), postlabel='x finer than Nyquist', position=(r,0))
-        r += 1
-        self._add_labeled_entry('nlambda', calc_opts_root, label='# of wavelengths:',  width=3, value='', position=(r,0), postlabel='Leave blank for autoselect')
-        r += 1
-
-        self._add_labeled_dropdown("jitter", calc_opts_root, label='Jitter model:', values=  ['Just use OPDs' ], width=20, position=(r,0), sticky='W', columnspan=2)
-        r += 1
-        self._add_labeled_dropdown("output_format", calc_opts_root, label='Output Format:', values=self.OUTPUT_OPTS.names, width=30, position=(r,0), sticky='W', columnspan=2)
-        #self._add_labeled_dropdown("jitter", lf, label='Jitter model:', values=  ['Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid'], width=20, position=(r,0), sticky='W', columnspan=2)
-
-        calc_opts_root.grid(row=4, sticky='E,W', padx=10, pady=5)
-
-
-
-    def _create_widgets(self):
-        """Create a nice GUI using the enhanced widget set provided by
-        the ttk extension to Tkinter, available in Python 2.7 or newer
-        """
-        #---- create the GUIs
-        self.root.title("James Webb Space Telescope PSF Calculator")
-
-        frame = ttk.Frame(self.root)
-
-        #-- source properties
-        source_labelframe = ttk.LabelFrame(frame, text='Source Properties')
-        self._populate_source_properties(source_labelframe)
-
-        #-- instrument config
-        lf = ttk.LabelFrame(frame, text='Instrument Config')
-        notebook = ttk.Notebook(lf)
-        self.widgets['tabset'] = notebook
-        notebook.pack(fill='both')
-
-        self._populate_instrument_config(notebook)
-
-        self.ev_update_opd_labels()
-        lf.grid(row=2, sticky='E,W', padx=10, pady=5)
-        notebook.select(0)
-
-        #-- calculation options
-
-        calc_options_frame = ttk.LabelFrame(frame, text='Calculation Options')
-        self._populate_calculation_options(calc_options_frame)
-        calc_options_frame.columnconfigure(2, weight=1)
-        calc_options_frame.columnconfigure(4, weight=1)
-        calc_options_frame.grid(row=5, sticky='E,W', padx=10, pady=15)
-
-        #-- control buttons
-        control_buttons_frame = ttk.Frame(frame)
-
-        def addbutton(text, command, pos, disabled=False):
-            """Shorthand inner function for adding buttons"""
-            self.widgets[text] = ttk.Button(control_buttons_frame,
-                                            text=text, command=command)
-            self.widgets[text].grid(column=pos, row=0, sticky='E')
-            if disabled:
-                self.widgets[text].state(['disabled'])
-
-        addbutton('Compute PSF', self.ev_calc_psf, 0)
-        addbutton('Display PSF', self.ev_display_psf, 1, disabled=True)
-        addbutton('Display profiles', self.ev_display_profiles, 2, disabled=True)
-        addbutton('Save PSF As...', self.ev_save_as, 3, disabled=True)
-        addbutton('More options...', self.ev_options, 4, disabled=False)
-
-        ttk.Button(control_buttons_frame, text='Quit', command=self.quit).grid(column=5, row=0)
-        control_buttons_frame.columnconfigure(2, weight=1)
-        control_buttons_frame.columnconfigure(4, weight=1)
-        control_buttons_frame.grid(row=6, sticky='E,W', padx=10, pady=15)
-
-        frame.grid(row=0, sticky='N,E,S,W')
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
 
     def _update_from_gui(self):
         # get GUI values
@@ -716,12 +727,10 @@ class WebbPSFGUI(PSFGenerationGUI):
 
         self.inst.options = options
 
-    def mainloop(self):
-        self.root.mainloop()
 
 #-------------------------------------------------------------------------
 
-class Dialog(tk.Toplevel):
+class OptionsDialog(tk.Toplevel):
     """
     PSF generation GUI options dialog
 
@@ -730,7 +739,7 @@ class Dialog(tk.Toplevel):
     """
 
     def __init__(self, parent, title=None, input_options=None):
-        self.results = None # in case we cancel this gets returned
+        self.results = input_options # in case we cancel this gets returned
         self.vars = {}
         self.widgets = {}
 
@@ -768,57 +777,12 @@ class Dialog(tk.Toplevel):
 
         self.initial_focus.focus_set()
         self.wait_window(self)
-
-    def _add_labeled_dropdown(self, name, root, label="Entry:", values=None,
-                              default=None, width=5, position=(0, 0), **kwargs):
-        "convenient wrapper for adding a Combobox"
-
-        ttk.Label(root, text=label).grid(
-            row=position[0],
-            column=position[1],
-            sticky='W'
-        )
-
-        self.vars[name] = tk.StringVar()
-        self.widgets[name] = ttk.Combobox(root,
-            textvariable=self.vars[name],
-            width=width,
-            state='readonly'
-        )
-        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
-        self.widgets[name]['values'] = values
-
-        if default is None:
-            default = values[0] # TODO:jlong: values is not really optional!
-        self.widgets[name].set(default)
-    def _add_labeled_entry(self, name, root, label="Entry:", value="", width=5,
-                           position=(0, 0), postlabel=None, **kwargs):
-        "convenient wrapper for adding an Entry"
-        ttk.Label(root, text=label).grid(
-            row=position[0],
-            column=position[1],
-            sticky='W'
-        )
-
-        self.vars[name] = tk.StringVar()
-        self.widgets[name] = ttk.Entry(root, textvariable=self.vars[name],
-                                       width=width)
-        self.widgets[name].insert(0,value)
-        self.widgets[name].grid(row=position[0], column=position[1]+1, **kwargs)
-
-        if postlabel is not None:
-            ttk.Label(root, text=postlabel).grid(
-                row=position[0],
-                column=position[1]+2,
-                sticky='W'
-            )
     #
     # construction hooks
     def body(self, master):
         # create dialog body.  return widget that should have
         # initial focus.  this method should be overridden
         pass
-
 
     def buttonbox(self):
         # add standard button box. override if you don't want the
@@ -862,9 +826,9 @@ class Dialog(tk.Toplevel):
     # command hooks
 
     def validate(self):
-        raise NotImplementedError("Dialog subclasses must implement validate()")
+        return self.apply(test=True)
 
-    def apply(self):
+    def apply(self, test=False):
         raise NotImplementedError("Dialog subclasses must implement apply()")
 
 PROPAGATION_OPTS = Options(
@@ -881,7 +845,7 @@ PARITY_OPTS = Options(
     either='either'
 )
 
-class WebbPSFOptionsDialog(Dialog):
+class WebbPSFOptionsDialog(OptionsDialog):
     def __init__(self, *args, **kwargs):
         self.results = None
         # TODO:jlong: Dialog inherits from an old-style class, unclear how to
@@ -892,7 +856,8 @@ class WebbPSFOptionsDialog(Dialog):
         calc_options_labelframe = ttk.LabelFrame(master, text='WebbPSF Advanced Options')
 
         row_counter = 0
-        self._add_labeled_dropdown(
+        _add_labeled_dropdown(
+            self,
             "force_coron",
             calc_options_labelframe,
             label='Direct imaging calculations use',
@@ -904,7 +869,8 @@ class WebbPSFOptionsDialog(Dialog):
             sticky='W'
         )
         row_counter += 1
-        self._add_labeled_dropdown(
+        _add_labeled_dropdown(
+            self,
             "no_sam",
             calc_options_labelframe,
             label='Coronagraphic calculations use',
@@ -916,7 +882,8 @@ class WebbPSFOptionsDialog(Dialog):
             sticky='W'
         )
         row_counter += 1
-        self._add_labeled_dropdown(
+        _add_labeled_dropdown(
+            self,
             "parity",
             calc_options_labelframe,
             label='Output pixel grid parity is',
@@ -928,27 +895,6 @@ class WebbPSFOptionsDialog(Dialog):
         )
 
         calc_options_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
-
-        display_options_labelframe = ttk.LabelFrame(master, text='PSF Display Options')
-        row_counter = 0
-        self._add_labeled_dropdown(
-            "psf_scale",
-            display_options_labelframe,
-            label='    Display scale:',
-            values=['log','linear'],
-            default=self.input_options['psf_scale'],
-            width=5, position=(row_counter, 0), sticky='W'
-        )
-        row_counter += 1
-        self._add_labeled_entry("psf_vmin", display_options_labelframe, label='    Min scale value:', value="%.2g" % self.input_options['psf_vmin'], width=7, position=(row_counter,0), sticky='W')
-        row_counter += 1
-        self._add_labeled_entry("psf_vmax", display_options_labelframe, label='    Max scale value:', value="%.2g" % self.input_options['psf_vmax'], width=7, position=(row_counter,0), sticky='W')
-        row_counter += 1
-        self._add_labeled_dropdown("psf_normalize", display_options_labelframe, label='    Normalize PSF to:', values=['Total', 'Peak'], default=self.input_options['psf_normalize'], width=5, position=(row_counter,0), sticky='W')
-        row_counter += 1
-        self._add_labeled_dropdown("psf_cmap", display_options_labelframe, label='    Color table:', values=[a[0] for a in self.colortables],  default=self.input_options['psf_cmap_str'], width=20, position=(row_counter,0), sticky='W')
-        display_options_labelframe.grid(row=2, sticky='E,W', padx=10,pady=5)
-
 
         return self.widgets['force_coron']  # return widget to have initial focus
 
@@ -969,18 +915,16 @@ class WebbPSFOptionsDialog(Dialog):
         # TODO:jlong: validate interactively
         # http://stackoverflow.com/questions/4140437/
         except ValueError:
+            tkMessageBox.showwarning(
+                message="Ensure the PSF scale values are valid floating-point literals (e.g. "
+                        "'0.005', '1.2e-5')",
+                title="Invalid PSF Plot Scale Values"
+            )
             return False
 
         if not test:
             self.results = results
         return True
-
-    def validate(self):
-        can_apply = self.apply(test=True)
-        if not can_apply:
-            _log.error("Invalid entries in one or more fields. "
-                       "Please re-enter!")
-        return can_apply
 
 #-------------------------------------------------------------------------
 
