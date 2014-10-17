@@ -9,12 +9,16 @@ An object-oriented modeling system for the JWST instruments.
 Full documentation at http://www.stsci.edu/~mperrin/software/webbpsf/
 
 Classes:
-  * JWInstrument
-    * MIRI
-    * NIRCam
-    * NIRSpec
-    * NIRISS
-    * FGS
+  * SpaceTelescopeInstrument
+    * JWInstrument
+      * MIRI
+      * NIRCam
+      * NIRSpec
+      * NIRISS
+      * FGS
+    * WFIRSTInstrument
+      * WFIRSTImager
+      * WFIRSTSpectrograph
 
 
 WebbPSF makes use of python's ``logging`` facility for log messages, using
@@ -55,14 +59,14 @@ _log = logging.getLogger('webbpsf')
 
 
 
-class JWInstrument(poppy.instrument.Instrument):
-    """ A generic JWST Instrument class.
+class SpaceTelescopeInstrument(poppy.instrument.Instrument):
+    """ A generic Space Telescope Instrument class.
 
     *Note*: Do not use this class directly - instead use one of the specific instrument subclasses!
 
-    This class provides a simple interface for modeling PSF formation through the JWST instruments, 
-    with configuration options and software interface loosely resembling the configuration of the instrument 
-    hardware mechanisms.   
+    This class provides a simple interface for modeling PSF formation through the instrument,
+    with configuration options and software interface loosely resembling the configuration of the instrument
+    hardware mechanisms.
     
     This module currently only provides a modicum of error checking, and relies on the user
     being knowledgable enough to avoid trying to simulate some physically impossible or just plain silly
@@ -71,7 +75,7 @@ class JWInstrument(poppy.instrument.Instrument):
     The instrument constructors do not take any arguments. Instead, create an instrument object and then
     configure the `filter` or other attributes as desired. The most commonly accessed parameters are 
     available as object attributes: `filter`, `image_mask`, `pupil_mask`, `pupilopd`. More advanced
-    configuration can be done by editing the :ref:`JWInstrument.options` dictionary, either by passing options to __init__ or by directly editing the dict afterwards.
+    configuration can be done by editing the :ref:`SpaceTelescopeInstrument.options` dictionary, either by passing options to __init__ or by directly editing the dict afterwards.
     """
 
     options = {} # options dictionary
@@ -115,7 +119,6 @@ class JWInstrument(poppy.instrument.Instrument):
 
     def __init__(self, name="", pixelscale = 0.064):
         self.name=name
-        self.pixelscale = pixelscale
 
         self._WebbPSF_basepath = utils.get_webbpsf_data_path()
 
@@ -123,15 +126,8 @@ class JWInstrument(poppy.instrument.Instrument):
         self._filter = None
         self._image_mask = None
         self._pupil_mask = None
-        self.pupil = os.path.abspath(self._datapath+"../pupil_RevV.fits")
-        "Filename *or* fits.HDUList for JWST pupil mask. Usually there is no need to change this."
-        self.pupilopd = None   # This can optionally be set to a tuple indicating (filename, slice in datacube)
-        """Filename *or* fits.HDUList for JWST pupil OPD. 
-        
-        This can be either a full absolute filename, or a relative name in which case it is
-        assumed to be within the instrument's `data/OPDs/` directory, or an actual fits.HDUList object corresponding to such a file.
-        If the file contains a datacube, you may set this to a tuple (filename, slice) to select a given slice, or else
-        the first slice will be used."""
+        self.pupil = None
+        self.pupilopd = None  #TODO:jlong: is it enough to move this to JWInstr?
 
 
         self.options = {} # dict for storing other arbitrary options. 
@@ -197,7 +193,7 @@ class JWInstrument(poppy.instrument.Instrument):
         This is called automatically when assembling an OpticalSystem object prior to any
         calculation.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement _validate_config")
 
     # create properties with error checking
 #    @property
@@ -262,7 +258,7 @@ class JWInstrument(poppy.instrument.Instrument):
             self._detector = DetectorGeometry(self.name, siaf_aperture_name, shortname=detname)
 
     def __str__(self):
-        return "JWInstrument name="+self.name
+        return "SpaceTelescopeInstrument name="+self.name
 
     #----- actual optical calculations follow here -----
     def calcPSF(self, outfile=None, source=None, filter=None,  nlambda=None, monochromatic=None ,
@@ -530,27 +526,37 @@ class JWInstrument(poppy.instrument.Instrument):
 
         #---- set pupil OPD
         if isinstance(self.pupilopd, str):  # simple filename
-            full_opd_path = self.pupilopd if os.path.exists( self.pupilopd) else os.path.join(self._datapath, "OPD",self.pupilopd)
+            opd_map = self.pupilopd if os.path.exists( self.pupilopd) else os.path.join(self._datapath, "OPD",self.pupilopd)
         elif hasattr(self.pupilopd, '__getitem__') and isinstance(self.pupilopd[0], basestring): # tuple with filename and slice
-            full_opd_path =  (self.pupilopd[0] if os.path.exists( self.pupilopd[0]) else os.path.join(self._datapath, "OPD",self.pupilopd[0]), self.pupilopd[1])
-        elif isinstance(self.pupilopd, fits.HDUList) or isinstance(self.pupilopd, poppy.OpticalElement): # OPD supplied as FITS object
-            full_opd_path = self.pupilopd # not a path per se but this works correctly to pass it to poppy
+            opd_map =  (self.pupilopd[0] if os.path.exists( self.pupilopd[0]) else os.path.join(self._datapath, "OPD",self.pupilopd[0]), self.pupilopd[1])
+        elif isinstance(self.pupilopd, (fits.HDUList, poppy.OpticalElement)):
+            opd_map = self.pupilopd # not a path per se but this works correctly to pass it to poppy
         elif self.pupilopd is None: 
-            full_opd_path = None
+            opd_map = None
         else:
             raise TypeError("Not sure what to do with a pupilopd of that type:"+str(type(self.pupilopd)))
 
         #---- set pupil intensity
         if isinstance(self.pupil, str): # simple filename
-            full_pupil_path = self.pupil if os.path.exists( self.pupil) else os.path.join(self._WebbPSF_basepath,self.pupil)
-        elif isinstance(self.pupil, fits.HDUList): # pupil supplied as FITS object
-            full_pupil_path = self.pupil
+            if os.path.exists(self.pupil):
+                pupil_transmission = self.pupil
+            else:
+                pupil_transmission = os.path.join(
+                    self._WebbPSF_basepath,
+                    self.pupil
+                )
+        elif isinstance(self.pupil, (fits.HDUList, poppy.OpticalElement)):
+            # POPPY can use self.pupil as-is
+            pupil_transmission = self.pupil
+        elif self.pupil is None:
+            raise RuntimeError("The pupil shape must be specified in the "
+                               "instrument class or by setting self.pupil")
         else: 
             raise TypeError("Not sure what to do with a pupil of that type:"+str(type(self.pupil)))
 
 
         #---- apply pupil intensity and OPD to the optical model
-        optsys.addPupil(name='JWST Pupil', transmission=full_pupil_path, opd=full_opd_path, opdunits='micron', rotation=self._rotation)
+        optsys.addPupil(name='JWST Pupil', transmission=pupil_transmission, opd=opd_map, opdunits='micron', rotation=self._rotation)
 
         #---- Add defocus if requested
         if 'defocus_waves' in options.keys(): 
@@ -657,9 +663,21 @@ class JWInstrument(poppy.instrument.Instrument):
                                 wave=filterdata.WAVELENGTH, waveunits='angstrom',name=filtername)
         return band
 
-
-
 #######  JWInstrument classes  #####
+
+class JWInstrument(SpaceTelescopeInstrument):
+    def __init__(self, *args, **kwargs):
+        super(JWInstrument, self).__init__(*args, **kwargs)
+
+        self.pupil = os.path.abspath(self._datapath+"../pupil_RevV.fits")
+        "Filename *or* fits.HDUList for JWST pupil mask. Usually there is no need to change this."
+        self.pupilopd = None   # This can optionally be set to a tuple indicating (filename, slice in datacube)
+        """Filename *or* fits.HDUList for JWST pupil OPD.
+
+        This can be either a full absolute filename, or a relative name in which case it is
+        assumed to be within the instrument's `data/OPDs/` directory, or an actual fits.HDUList object corresponding to such a file.
+        If the file contains a datacube, you may set this to a tuple (filename, slice) to select a given slice, or else
+        the first slice will be used."""
 
 class MIRI(JWInstrument):
     """ A class modeling the optics of MIRI, the Mid-InfraRed Instrument.
@@ -1262,9 +1280,6 @@ class FGS(JWInstrument):
         """ Format FGS-like FITS headers, based on JWST DMS SRD 1 FITS keyword info """
         JWInstrument._getFITSHeader(self, hdulist, options)
         hdulist[0].header['FOCUSPOS'] = (0,'FGS focus mechanism not yet modeled.')
-
-
-
 
 ###########################################################################
 # Generic utility functions
