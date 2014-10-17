@@ -62,27 +62,33 @@ class Options(object):
                 raise ConfigurationError("The name {0} is in use by the API")
             setattr(self, key, value)
             self.ordered_options.append((key, value))
+
     @property
     def names(self):
         """
         Names defined for this set of options
         """
         return [long_name for _, long_name in self.ordered_options]
+
     @property
     def short_names(self):
         """
         Short (attribute) names defined for this set of options
         """
         return [short_name for short_name, _ in self.ordered_options]
+
     def validate(self, value):
         """
         Validates that `value` is a valid choice from these options
         """
-        return (value in self.names)
+        return value in self.names
+
     def __len__(self):
         return len(self.ordered_options)
+
     def __getitem__(self, item):
         return self.ordered_options[item]
+
     def __iter__(self):
         return self.names.__iter__()
 
@@ -114,13 +120,15 @@ def _add_labeled_dropdown(controller, name, root, label="Entry:", label_pad=(1, 
         default = values[0]
     controller.widgets[name].set(default)
 
+
 def _add_labeled_entry(controller, name, root, label="Entry:", label_pad=(1, 1), value="",
                        width=5, position=(0, 0), postlabel=None, **kwargs):
     """Convenient wrapper for adding a labeled Entry"""
     ttk.Label(root, text=label).grid(
         row=position[0],
         column=position[1],
-        sticky='W'
+        sticky='W',
+        padx=label_pad
     )
 
     controller.vars[name] = tk.StringVar()
@@ -185,7 +193,7 @@ class PSFGenerationGUI(object):
         source_labelframe = ttk.LabelFrame(frame, text='Source Properties')
         self._populate_source_properties(source_labelframe)
         source_labelframe.columnconfigure(2, weight=1)
-        source_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
+        source_labelframe.grid(row=1, sticky='E,W', padx=10, pady=5)
 
         #-- instrument config
         lf = ttk.LabelFrame(frame, text='Instrument Config')
@@ -255,6 +263,7 @@ class PSFGenerationGUI(object):
         corner = ttk.Radiobutton(frame_root, text='corner', variable=self.vars["source_off_centerpos"], value='corner')
         corner.grid(row=r, column=6)
         frame_root.grid(row=r, column=0, columnspan=5, sticky='W')
+
     def _populate_calculation_options(self, calc_opts_root):
         r = 0
         _add_labeled_entry(
@@ -282,9 +291,8 @@ class PSFGenerationGUI(object):
 
         calc_opts_root.grid(row=4, sticky='E,W', padx=10, pady=5)
 
-
-
-
+    def _populate_instrument_config(self, notebook):
+        raise NotImplementedError("Subclasses must implement _populate_instrument_config")
 
     def quit(self):
         """Quit the GUI"""
@@ -524,6 +532,7 @@ class PSFGenerationGUI(object):
     def _update_from_gui(self):
         raise NotImplementedError("Subclasses must implement _update_from_gui")
 
+
 class WebbPSFGUI(PSFGenerationGUI):
     """ A GUI for the Webb PSF Simulator
 
@@ -553,8 +562,6 @@ class WebbPSFGUI(PSFGenerationGUI):
         # create widgets & run
         self._create_widgets()
         self.root.update()
-
-
 
     def _populate_instrument_config(self, notebook):
         for i, iname in enumerate(self.instrument_names):
@@ -844,6 +851,7 @@ PARITY_OPTS = Options(
     even='even',
     either='either'
 )
+
 
 class WebbPSFOptionsDialog(OptionsDialog):
     def __init__(self, *args, **kwargs):
