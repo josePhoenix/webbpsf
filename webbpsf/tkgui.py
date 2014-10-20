@@ -30,8 +30,10 @@ except ImportError:
 import poppy
 from webbpsf import webbpsf_core
 
+
 class ConfigurationError(Exception):
     pass
+
 
 class Options(object):
     """
@@ -313,7 +315,7 @@ class PSFGenerationGUI(object):
             parent=self.root
         )
         if len(filename) > 0:
-            self.PSF_HDUlist.writeto(filename)
+            self.psf_hdulist.writeto(filename)
             print "Saved to %s" % filename
 
     def ev_options(self):
@@ -341,11 +343,10 @@ class PSFGenerationGUI(object):
         ax1 = plt.subplot(311)
         spectrum = poppy.specFromSpectralType(self.sptype)
         synplot(spectrum)
-        ax1.set_ybound(1e-6, 1e8) # hard coded for now
+        ax1.set_ybound(1e-6, 1e8)  # hard coded for now
         ax1.yaxis.set_major_locator(matplotlib.ticker.LogLocator(base=1000))
         legend_font = matplotlib.font_manager.FontProperties(size=10)
         ax1.legend(loc='lower right', prop=legend_font)
-
 
         ax2 = plt.subplot(312, sharex=ax1)
         ax2.set_ybound(0, 1.1)
@@ -354,9 +355,6 @@ class PSFGenerationGUI(object):
         synplot(band)
         legend_font = matplotlib.font_manager.FontProperties(size=10)
         plt.legend(loc='lower right', prop=legend_font)
-
-        ax2.set_ybound(0, 1.1)
-
 
         ax3 = plt.subplot(313, sharex=ax1)
         if self.nlambda is None:
@@ -397,7 +395,7 @@ class PSFGenerationGUI(object):
         if _HAS_PYSYNPHOT_DATA:
             source = poppy.specFromSpectralType(self.sptype)
         else:
-            source = None # generic flat spectrum
+            source = None  # generic flat spectrum
 
         _refresh_window()
 
@@ -530,8 +528,8 @@ class PSFGenerationGUI(object):
             self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
 
     def _update_from_gui(self):
+        #TODO:jlong: this should update source and calc options, then subclasses only do instruments
         raise NotImplementedError("Subclasses must implement _update_from_gui")
-
 
 class WebbPSFGUI(PSFGenerationGUI):
     """ A GUI for the Webb PSF Simulator
@@ -565,11 +563,11 @@ class WebbPSFGUI(PSFGenerationGUI):
 
     def _populate_instrument_config(self, notebook):
         for i, iname in enumerate(self.instrument_names):
-            page = ttk.Frame(notebook)
+            page = ttk.Frame(notebook, name="tab_" + iname)
             notebook.add(page, text=iname)
             notebook.select(i)  # make it active
-            self.widgets[notebook.select()] = iname # save reverse lookup from meaningless widget "name" to string name
-            if iname =='NIRCam':
+            self.widgets[notebook.select()] = iname  # save reverse lookup to string name
+            if iname == 'NIRCam':
                 lframe = ttk.Frame(page)
 
                 ttk.Label(lframe, text='Configuration Options for '+iname+',     module: ').grid(row=0, column=0, sticky='W')
@@ -602,13 +600,11 @@ class WebbPSFGUI(PSFGenerationGUI):
                 iname2 = iname+"" # need to make a copy so the following lambda function works right:
                 self.widgets[iname+"_filter"].bind('<<ComboboxSelected>>', lambda e: self.ev_update_ifu_label(iname2))
 
-
             if len(self.instrument[iname].image_mask_list) >0 :
                 masks = self.instrument[iname].image_mask_list
                 masks.insert(0, "")
 
                 _add_labeled_dropdown(self, iname+"_coron", page, label='    Coron:', values=masks,  width=12, position=(2,0), sticky='W')
-
 
             if len(self.instrument[iname].image_mask_list) >0 :
                 masks = self.instrument[iname].pupil_mask_list
@@ -620,13 +616,12 @@ class WebbPSFGUI(PSFGenerationGUI):
                 _add_labeled_entry(self, iname+"_pupilshift_y", fr2, label=' Y:', value='0', width=3, position=(3,6), sticky='W')
 
                 ttk.Label(fr2, text='% of pupil' ).grid(row=3, column=8)
-                fr2.grid(row=3,column=3, sticky='W')
-
+                fr2.grid(row=3, column=3, sticky='W')
 
             ttk.Label(page, text='Configuration Options for the OTE').grid(row=4, columnspan=2, sticky='W')
             fr2 = ttk.Frame(page)
 
-            opd_list =  self.instrument[iname].opd_list
+            opd_list = self.instrument[iname].opd_list
             opd_list.insert(0,"Zero OPD (perfect)")
 
             if self._enable_opdserver:
@@ -648,8 +643,6 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             fr2.grid(row=5, column=0, columnspan=4, sticky='S')
 
-
-
             # ITM interface here - build the widgets now but they will be hidden by default until the ITM option is selected
             fr2 = ttk.Frame(page)
             _add_labeled_entry(self, iname+"_coords", fr2, label='    Source location:', value='0, 0', width=12, position=(1,0), sticky='W')
@@ -658,14 +651,13 @@ class WebbPSFGUI(PSFGenerationGUI):
             choose_list=['', 'SI center', 'SI upper left corner', 'SI upper right corner', 'SI lower left corner', 'SI lower right corner']
             _add_labeled_dropdown(self, iname+"_coord_choose", fr2, label='or select:', values=choose_list, default=choose_list[0], width=21, position=(1,4), sticky='W')
 
-
             ttk.Label(fr2, text='    ITM output:').grid(row=2, column=0, sticky='W')
             self.widgets[iname+"_itm_output"] = ttk.Label(fr2, text='    - no file available yet -')
             self.widgets[iname+"_itm_output"].grid(row=2, column=1, columnspan=4, sticky='W')
             ttk.Button(fr2, text='Access ITM...', command=self.ev_launch_itm_dialog).grid(column=5,sticky='E',row=2)
 
 
-            fr2.grid(row=6, column=0, columnspan=4,sticky='SW')
+            fr2.grid(row=6, column=0, columnspan=4, sticky='SW')
             self.widgets[iname+"_itm_coords"] = fr2
 
     def _update_from_gui(self):
@@ -674,38 +666,46 @@ class WebbPSFGUI(PSFGenerationGUI):
             self.sptype = self.widgets['SpType'].get()
         self.iname = self.widgets[self.widgets['tabset'].select()]
 
-        try:
-            self.nlambda= int(self.widgets['nlambda'].get())
-        except:
-            self.nlambda = None # invoke autoselect for nlambda
+        nlambda_string = self.widgets['nlambda'].get()
+        if len(nlambda_string) > 0:
+            try:
+                self.nlambda = int()
+            except ValueError:
+                tkMessageBox.showwarning(
+                    message="Got a non-integer value for number of wavelengths. Falling back on"
+                            "autoselected value.",
+                    title="Invalid Number of Wavelengths"
+                )
+                self.nlambda = None
+        else:
+            self.nlambda = None
+
         self.field_of_view = float(self.widgets['FOV'].get())
-        self.fft_oversampling= int(self.widgets['fft_oversampling'].get())
-        self.detector_oversampling= int(self.widgets['detector_oversampling'].get())
+        self.fft_oversampling = int(self.widgets['fft_oversampling'].get())
+        self.detector_oversampling = int(self.widgets['detector_oversampling'].get())
 
         self.output_format = self.widgets['output_format'].get()
 
-        options = {}
-        #options['downsample'] = bool(self.vars['downsamp'])
-        options['rebin'] = not (self.output_format == 'Oversampled PSF only')  #was downsample, which seems wrong?
-        options['mock_dms'] = (self.output_format == 'Mock full image from JWST DMS')
-        options['jitter'] = self.widgets['jitter'].get()
-        #print "Downsamp value: ",  options['downsample']
+        options = {
+            'rebin': not (self.output_format == 'Oversampled PSF only'),
+            'mock_dms': (self.output_format == 'Mock full image from JWST DMS'),
+            'jitter': self.widgets['jitter'].get(),
+        }
 
         # and get the values that may have previously been set by the 'advanced options' dialog
         if self.advanced_options is not None:
             for a in self.advanced_options.keys():
                 options[a] = self.advanced_options[a]
 
-
         # configure the relevant instrument object
         self.inst = self.instrument[self.iname]
-        self.filter = self.widgets[self.iname+"_filter"].get() # save for use in default filenames, etc.
+        self.filter = self.widgets[self.iname+"_filter"].get()
         self.inst.filter = self.filter
 
         self.opd_name = self.widgets[self.iname+"_opd"].get()
         if self._enable_opdserver and 'ITM' in self.opd_name:
             # get from ITM server
-            self.opd_i= 0
+            self.opd_i = 0
             self.inst.pupilopd = self._opdserver.get_OPD(return_as="FITS")
             self.opd_name = "OPD from ITM OPD GUI"
 
@@ -715,12 +715,12 @@ class WebbPSFGUI(PSFGenerationGUI):
             self.inst.pupilopd = None
         else:
             # Regular FITS file version
-            self.opd_name= self.widgets[self.iname+"_opd"].get()
-            self.opd_i= int(self.widgets[self.iname+"_opd_i"].get())
-            self.inst.pupilopd = (self.inst._datapath+os.sep+"OPD"+os.sep+self.opd_name,self.opd_i)  #filename, slice
+            self.opd_name = self.widgets[self.iname+"_opd"].get()
+            self.opd_i = int(self.widgets[self.iname+"_opd_i"].get())
+            # OPD tuple as (path, slice number)
+            self.inst.pupilopd = os.path.join(self.inst._datapath, "OPD", self.opd_name, self.opd_i)
 
         _log.info("Selected OPD is "+str(self.opd_name))
-
 
         if self.iname+"_coron" in self.widgets:
             self.inst.image_mask = self.widgets[self.iname+"_coron"].get()
@@ -746,7 +746,7 @@ class OptionsDialog(tk.Toplevel):
     """
 
     def __init__(self, parent, title=None, input_options=None):
-        self.results = input_options # in case we cancel this gets returned
+        self.results = input_options  # in case we cancel this gets returned
         self.vars = {}
         self.widgets = {}
 
@@ -786,6 +786,7 @@ class OptionsDialog(tk.Toplevel):
         self.wait_window(self)
     #
     # construction hooks
+
     def body(self, master):
         # create dialog body.  return widget that should have
         # initial focus.  this method should be overridden
@@ -902,7 +903,7 @@ class WebbPSFOptionsDialog(OptionsDialog):
             sticky='W'
         )
 
-        calc_options_labelframe.grid(row=1, sticky='E,W', padx=10,pady=5)
+        calc_options_labelframe.grid(row=1, sticky='E,W', padx=10, pady=5)
 
         return self.widgets['force_coron']  # return widget to have initial focus
 
