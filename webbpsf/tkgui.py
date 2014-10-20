@@ -152,6 +152,13 @@ def _add_labeled_entry(controller, name, root, label="Entry:", label_pad=(1, 1),
 
 class PSFGenerationGUI(object):
     """Base Class for a PSF generation GUI using Tkinter & TTK native widgets"""
+    OUTPUT_OPTS = Options(
+        oversampled='Oversampled image',
+        detector_scale='Detector sampled image',
+        both_as_fits='Both as FITS extensions'
+    )
+    PERFECT_OPD = "Zero OPD (perfect)"
+
     def __init__(self):
         # set basic options to defaults
         self.field_of_view = 5
@@ -169,6 +176,12 @@ class PSFGenerationGUI(object):
             'psf_normalize': 'Total',
             'psf_cmap': matplotlib.cm.jet
         }
+        self.sptype = None  # TODO:jlong: reasonable default
+        self.iname = None  # ditto
+        self.filter = None  # ditto
+        self.inst = None  # set during init?
+        self.opd_name = None
+        self.opd_i = None
 
         # init the object and subobjects
         self.instrument = {}
@@ -245,29 +258,59 @@ class PSFGenerationGUI(object):
         self.root.rowconfigure(0, weight=1)
 
     def _populate_source_properties(self, source_labelframe):
-
         if _HAS_PYSYNPHOT_DATA:
-            _add_labeled_dropdown(self, "SpType", source_labelframe, label='    Spectral Type:', values=poppy.specFromSpectralType("",return_list=True), default='G0V', width=25, position=(0,0), sticky='W')
-            ttk.Button(source_labelframe, text='Plot spectrum', command=self.ev_plot_spectrum).grid(row=0, column=2, sticky='E', columnspan=4)
+            _add_labeled_dropdown(
+                self,
+                "SpType",
+                source_labelframe,
+                label='    Spectral Type:',
+                values=poppy.specFromSpectralType("", return_list=True),
+                default='G0V',
+                width=25,
+                position=(0, 0),
+                sticky='W'
+            )
+            plot_button = ttk.Button(source_labelframe, text='Plot spectrum',
+                                     command=self.ev_plot_spectrum)
+            plot_button.grid(row=0, column=2, sticky='E', columnspan=4)
 
-        r = 1
         frame_root = ttk.Frame(source_labelframe)
 
-        _add_labeled_entry(self, "source_off_r", frame_root, label='    Source Position: r=', value='0.0', width=5, position=(r,0), sticky='W')
-        _add_labeled_entry(self, "source_off_theta", frame_root, label='arcsec,  PA=', value='0', width=3, position=(r,2), sticky='W')
+        _add_labeled_entry(
+            self,
+            "source_off_r",
+            frame_root,
+            label='    Source Position: r=',
+            value='0.0',
+            width=5,
+            position=(1, 0),
+            sticky='W'
+        )
+        _add_labeled_entry(
+            self,
+            "source_off_theta",
+            frame_root,
+            label='arcsec,  PA=',
+            value='0',
+            width=3,
+            position=(1, 2),
+            sticky='W'
+        )
 
         self.vars["source_off_centerpos"] = tk.StringVar()
         self.vars["source_off_centerpos"].set('corner')
 
-        ttk.Label(frame_root, text='deg, centered on ' ).grid(row=r, column=4)
-        pixel = ttk.Radiobutton(frame_root, text='pixel', variable=self.vars["source_off_centerpos"], value='pixel')
-        pixel.grid(row=r, column=5)
-        corner = ttk.Radiobutton(frame_root, text='corner', variable=self.vars["source_off_centerpos"], value='corner')
-        corner.grid(row=r, column=6)
-        frame_root.grid(row=r, column=0, columnspan=5, sticky='W')
+        ttk.Label(frame_root, text='deg, centered on ').grid(row=1, column=4)
+        pixel = ttk.Radiobutton(frame_root, text='pixel',
+                                variable=self.vars["source_off_centerpos"], value='pixel')
+        pixel.grid(row=1, column=5)
+        corner = ttk.Radiobutton(frame_root, text='corner',
+                                 variable=self.vars["source_off_centerpos"], value='corner')
+        corner.grid(row=1, column=6)
+        frame_root.grid(row=1, column=0, columnspan=5, sticky='W')
 
     def _populate_calculation_options(self, calc_opts_root):
-        r = 0
+        row_counter = 0
         _add_labeled_entry(
             self,
             'FOV',
@@ -276,20 +319,66 @@ class PSFGenerationGUI(object):
             width=3,
             value=str(self.field_of_view),
             postlabel='arcsec/side',
-            position=(r,0),
+            position=(row_counter, 0),
         )
-        r += 1
-        _add_labeled_entry(self, 'detector_oversampling', calc_opts_root, label='Output Oversampling:',  width=3, value=str(self.detector_oversampling), postlabel='x finer than instrument pixels       ', position=(r,0))
-        r += 1
-        _add_labeled_entry(self, 'fft_oversampling', calc_opts_root, label='Coronagraph FFT Oversampling:',  width=3, value=str(self.fft_oversampling), postlabel='x finer than Nyquist', position=(r,0))
-        r += 1
-        _add_labeled_entry(self, 'nlambda', calc_opts_root, label='# of wavelengths:',  width=3, value='', position=(r,0), postlabel='Leave blank for autoselect')
-        r += 1
+        row_counter += 1
+        _add_labeled_entry(
+            self,
+            'detector_oversampling',
+            calc_opts_root,
+            label='Output Oversampling:',
+            width=3,
+            value=str(self.detector_oversampling),
+            postlabel='x finer than instrument pixels       ',
+            position=(row_counter, 0)
+        )
+        row_counter += 1
+        _add_labeled_entry(
+            self,
+            'fft_oversampling',
+            calc_opts_root,
+            label='Coronagraph FFT Oversampling:',
+            width=3,
+            value=str(self.fft_oversampling),
+            postlabel='x finer than Nyquist',
+            position=(row_counter, 0)
+        )
+        row_counter += 1
+        _add_labeled_entry(
+            self,
+            'nlambda',
+            calc_opts_root,
+            label='# of wavelengths:',
+            width=3,
+            value='',
+            position=(row_counter, 0),
+            postlabel='Leave blank for autoselect'
+        )
+        row_counter += 1
 
-        _add_labeled_dropdown(self, "jitter", calc_opts_root, label='Jitter model:', values=  ['Just use OPDs' ], width=20, position=(r,0), sticky='W', columnspan=2)
-        r += 1
-        _add_labeled_dropdown(self, "output_format", calc_opts_root, label='Output Format:', values=self.OUTPUT_OPTS.names, width=30, position=(r,0), sticky='W', columnspan=2)
-        #_add_labeled_dropdown(self, "jitter", lf, label='Jitter model:', values=  ['Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid'], width=20, position=(r,0), sticky='W', columnspan=2)
+        _add_labeled_dropdown(
+            self,
+            "jitter",
+            calc_opts_root,
+            label='Jitter model:',
+            values=['Just use OPDs'],  # 'Just use OPDs', 'Gaussian blur', 'Accurate yet SLOW grid'
+            width=20,
+            position=(row_counter, 0),
+            sticky='W',
+            columnspan=2
+        )
+        row_counter += 1
+        _add_labeled_dropdown(
+            self,
+            "output_format",
+            calc_opts_root,
+            label='Output Format:',
+            values=self.OUTPUT_OPTS.names,
+            width=30,
+            position=(row_counter, 0),
+            sticky='W',
+            columnspan=2
+        )
 
         calc_opts_root.grid(row=4, sticky='E,W', padx=10, pady=5)
 
@@ -437,8 +526,6 @@ class PSFGenerationGUI(object):
     def ev_display_optics(self):
         """Event handler for displaying the optical system"""
         self._update_from_gui()
-        _log.info("Selected OPD is "+str(self.opd_name))
-
         plt.clf()
         self.inst.display()
         _refresh_window()
@@ -453,16 +540,10 @@ class PSFGenerationGUI(object):
                 title="Can't Display"
             )
         else:
-            if self._enable_opdserver and 'ITM' in self.opd_name:
-                # will contain the actual OPD loaded in _update_from_gui above
-                opd = self.inst.pupilopd
-            else:
-                # in this case self.inst.pupilopd is a tuple with a string so
-                # we have to load it here.
-                opd = fits.getdata(self.inst.pupilopd[0])
+            opd = fits.getdata(self.inst.pupilopd[0])
 
             if len(opd.shape) > 2:
-                opd = opd[self.opd_i, :, :] # grab correct slice
+                opd = opd[self.opd_i, :, :]  # grab correct slice
 
             # mask out all pixels which are exactly 0, outside the aperture
             masked_opd = np.ma.masked_equal(opd, 0)
@@ -482,13 +563,6 @@ class PSFGenerationGUI(object):
                      transform=fig.transFigure)
             _refresh_window()
 
-    def ev_launch_itm_dialog(self):
-        """TODO:jlong: move this to WebbPSFGUI"""
-        tkMessageBox.showwarning(
-            message="ITM dialog box not yet implemented",
-            title="Can't Display"
-        )
-
     def ev_update_opd_labels(self):
         """Update the descriptive text for all OPD files"""
         for iname in self.instrument.keys():
@@ -500,36 +574,20 @@ class PSFGenerationGUI(object):
 
     def ev_update_opd_label(self, widget_combobox, widget_label, iname):
         """Update the descriptive text displayed about one OPD file"""
-        showitm = False # default is do not show
-        filename = os.path.join(self.instrument[iname]._datapath, 'OPD',
-                                widget_combobox.get())
-        if filename.endswith(".fits"):
-            header_summary = fits.getheader(filename)['SUMMARY']
-            self.widgets[iname+"_opd_i"]['state'] = 'readonly'
-        else:  # Special options for non-FITS file inputs
-            self.widgets[iname+"_opd_i"]['state'] = 'disabled'
-            if 'Zero' in widget_combobox.get():
-                header_summary = " 0 nm RMS"
-            elif 'ITM' in widget_combobox.get() and self._enable_opdserver:
-                header_summary = "Get OPD from ITM Server"
-                showitm = True
-            elif 'ITM' in widget_combobox.get() and not self._enable_opdserver:
-                header_summary = ("ITM Server is not running "
-                                  "or otherwise unavailable.")
-            else:  # other???
-                header_summary = "   "
-
-        widget_label.configure(text=header_summary, width=30)
-
-
-        if showitm:
-            self.widgets[iname+"_itm_coords"].grid() # re-show ITM options
+        if widget_combobox.get() == self.PERFECT_OPD:
+            header_summary = self.PERFECT_OPD
         else:
-            self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
+            filename = os.path.join(self.instrument[iname]._datapath, 'OPD',
+                                    widget_combobox.get())
+            header_summary = fits.getheader(filename)['SUMMARY']
+
+        self.widgets[iname+"_opd_i"]['state'] = 'readonly'
+        widget_label.configure(text=header_summary, width=30)
 
     def _update_from_gui(self):
         #TODO:jlong: this should update source and calc options, then subclasses only do instruments
         raise NotImplementedError("Subclasses must implement _update_from_gui")
+
 
 class WebbPSFGUI(PSFGenerationGUI):
     """ A GUI for the Webb PSF Simulator
@@ -543,6 +601,7 @@ class WebbPSFGUI(PSFGenerationGUI):
         both_as_fits='Both as FITS extensions',
         mock_jwst_dms='Mock JWST DMS Output'
     )
+
     def __init__(self, opdserver=None):
         super(WebbPSFGUI, self).__init__()
         # this list defines the order of instrument tabs in the GUI
@@ -564,27 +623,48 @@ class WebbPSFGUI(PSFGenerationGUI):
     def _populate_instrument_config(self, notebook):
         for i, iname in enumerate(self.instrument_names):
             page = ttk.Frame(notebook, name="tab_" + iname)
+            if i == 0:
+                self._deleteme_page = page
             notebook.add(page, text=iname)
             notebook.select(i)  # make it active
             self.widgets[notebook.select()] = iname  # save reverse lookup to string name
+
             if iname == 'NIRCam':
                 lframe = ttk.Frame(page)
+                self._deleteme_frame = lframe
 
-                ttk.Label(lframe, text='Configuration Options for '+iname+',     module: ').grid(row=0, column=0, sticky='W')
-                mname='NIRCam module'
+                instr_config_label = ttk.Label(
+                    lframe,
+                    text='Configuration Options for '+iname+', module: '
+                )
+                instr_config_label.grid(row=0, column=0, sticky='W')
+
+                mname = 'NIRCam module'
                 self.vars[mname] = tk.StringVar()
-                self.widgets[mname] = ttk.Combobox(lframe, textvariable=self.vars[mname], width=2, state='readonly')
+                self.widgets[mname] = ttk.Combobox(lframe, textvariable=self.vars[mname],
+                                                   width=2, state='readonly')
                 self.widgets[mname].grid(row=0,column=1, sticky='W')
-                self.widgets[mname]['values'] = ['A','B']
+                self.widgets[mname]['values'] = ['A', 'B']
                 self.widgets[mname].set('A')
 
                 lframe.grid(row=0, columnspan=2, sticky='W')
             else:
-                ttk.Label(page, text='Configuration Options for '+iname+"                      ").grid(row=0, columnspan=2, sticky='W')
+                instr_config_label = ttk.Label(page, text='Configuration Options for '+iname)
+                instr_config_label.grid(row=0, columnspan=2, sticky='W')
 
             ttk.Button(page, text='Display Optics', command=self.ev_display_optics ).grid(column=2, row=0, sticky='E', columnspan=3)
 
-            _add_labeled_dropdown(self, iname+"_filter", page, label='    Filter:', values=self.instrument[iname].filter_list, default=self.instrument[iname].filter, width=12, position=(1,0), sticky='W')
+            _add_labeled_dropdown(
+                self,
+                iname+"_filter",
+                page,
+                label='    Filter:',
+                values=self.instrument[iname].filter_list,
+                default=self.instrument[iname].filter,
+                width=12,
+                position=(1, 0),
+                sticky='W'
+            )
 
             if iname == 'NIRSpec' or iname =='MIRI':
                 fr2 = ttk.Frame(page)
@@ -622,11 +702,11 @@ class WebbPSFGUI(PSFGenerationGUI):
             fr2 = ttk.Frame(page)
 
             opd_list = self.instrument[iname].opd_list
-            opd_list.insert(0,"Zero OPD (perfect)")
+            opd_list.insert(0, self.PERFECT_OPD)
 
             if self._enable_opdserver:
                 opd_list.append("OPD from ITM Server")
-            default_opd = self.instrument[iname].pupilopd if self.instrument[iname].pupilopd is not None else "Zero OPD (perfect)"
+            default_opd = self.instrument[iname].pupilopd if self.instrument[iname].pupilopd is not None else self.PERFECT_OPD
             _add_labeled_dropdown(self, iname+"_opd", fr2, label='    OPD File:', values=opd_list, default=default_opd, width=21, position=(0,0), sticky='W')
 
             _add_labeled_dropdown(self, iname+"_opd_i", fr2, label=' # ', values= [str(i) for i in range(10)], width=3, position=(0,2), sticky='W')
@@ -634,11 +714,14 @@ class WebbPSFGUI(PSFGenerationGUI):
             self.widgets[iname+"_opd_label"] = ttk.Label(fr2, text=' 0 nm RMS            ', width=35)
             self.widgets[iname+"_opd_label"].grid( column=4,sticky='W', row=0)
 
-            self.widgets[iname+"_opd"].bind('<<ComboboxSelected>>',
-                    lambda e: self.ev_update_opd_labels() )
-                    # The below code does not work, and I can't tell why. This only ever has iname = 'FGS' no matter which instrument.
-                    # So instead brute-force it with the above to just update all 5.
-                    #lambda e: self.ev_update_opd_label(self.widgets[iname+"_opd"], self.widgets[iname+"_opd_label"], iname) )
+            self.widgets[iname+"_opd"].bind(
+                '<<ComboboxSelected>>',
+                lambda e, inst=iname: self.ev_update_opd_label(
+                    self.widgets[inst+"_opd"],
+                    self.widgets[inst+"_opd_label"],
+                    inst
+                )
+            )
             ttk.Button(fr2, text='Display', command=self.ev_display_opd).grid(column=5,sticky='E',row=0)
 
             fr2.grid(row=5, column=0, columnspan=4, sticky='S')
@@ -709,7 +792,7 @@ class WebbPSFGUI(PSFGenerationGUI):
             self.inst.pupilopd = self._opdserver.get_OPD(return_as="FITS")
             self.opd_name = "OPD from ITM OPD GUI"
 
-        elif self.opd_name == "Zero OPD (perfect)":
+        elif self.opd_name == self.PERFECT_OPD:
             # perfect OPD
             self.opd_name = "Perfect"
             self.inst.pupilopd = None
@@ -718,7 +801,10 @@ class WebbPSFGUI(PSFGenerationGUI):
             self.opd_name = self.widgets[self.iname+"_opd"].get()
             self.opd_i = int(self.widgets[self.iname+"_opd_i"].get())
             # OPD tuple as (path, slice number)
-            self.inst.pupilopd = os.path.join(self.inst._datapath, "OPD", self.opd_name, self.opd_i)
+            self.inst.pupilopd = (
+                os.path.join(self.inst._datapath, "OPD", self.opd_name),
+                self.opd_i
+            )
 
         _log.info("Selected OPD is "+str(self.opd_name))
 
@@ -729,15 +815,56 @@ class WebbPSFGUI(PSFGenerationGUI):
 
             options['source_offset_r'] = float(self.widgets["source_off_r"].get())
             options['source_offset_theta'] = float(self.widgets["source_off_theta"].get())
-            options['pupil_shift_x'] = float(self.widgets[self.iname+"_pupilshift_x"].get())/100. # convert from percent to fraction
-            options['pupil_shift_y'] = float(self.widgets[self.iname+"_pupilshift_y"].get())/100. # convert from percent to fraction
+
+            # convert percentages to fractions
+            shift_x = self.widgets[self.iname+"_pupilshift_x"].get()
+            try:
+                options['pupil_shift_x'] = float(shift_x) / 100.0
+            except ValueError:
+                tkMessageBox.showwarning(
+                    message="Got an invalid value for pupil X shift. Using 0% instead.",
+                    title="Invalid Pupil X Shift"
+                )
+                options['pupil_shift_x'] = 0.0
+
+            shift_y = self.widgets[self.iname+"_pupilshift_y"].get()
+            try:
+                options['pupil_shift_y'] = float(shift_y) / 100.0
+            except ValueError:
+                tkMessageBox.showwarning(
+                    message="Got an invalid value for pupil X shift. Using 0% instead.",
+                    title="Invalid Pupil X Shift"
+                )
+                options['pupil_shift_y'] = 0.0
 
         self.inst.options = options
 
+    def ev_launch_itm_dialog(self):
+        tkMessageBox.showwarning(
+            message="ITM dialog box not yet implemented",
+            title="Can't Display"
+        )
+
+    def ev_update_opd_label(self, widget_combobox, widget_label, iname):
+        """Update the descriptive text displayed about one OPD file"""
+        if 'ITM' in widget_combobox.get():
+            if self._enable_opdserver:
+                header_summary = "Get OPD from ITM Server"
+                self.widgets[iname+"_itm_coords"].grid() # re-show ITM options
+            else:
+                header_summary = ("ITM Server is not running "
+                                  "or otherwise unavailable.")
+                self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
+
+            widget_label.configure(text=header_summary, width=30)
+            self.widgets[iname+"_itm_coords"].grid() # re-show ITM options
+        else:
+            super(WebbPSFGUI, self).ev_update_opd_label(widget_combobox, widget_label, iname)
+            self.widgets[iname+"_itm_coords"].grid_remove()  # hide ITM options
 
 #-------------------------------------------------------------------------
 
-class OptionsDialog(tk.Toplevel):
+class OptionsDialog(object, tk.Toplevel):
     """
     PSF generation GUI options dialog
 
@@ -857,9 +984,8 @@ PARITY_OPTS = Options(
 class WebbPSFOptionsDialog(OptionsDialog):
     def __init__(self, *args, **kwargs):
         self.results = None
-        # TODO:jlong: Dialog inherits from an old-style class, unclear how to
-        # call its __init__ in a forward-compatible way
-        Dialog.__init__(self, *args, **kwargs)
+
+        super(WebbPSFOptionsDialog, self).__init__(*args, **kwargs)
 
     def body(self, master):
         calc_options_labelframe = ttk.LabelFrame(master, text='WebbPSF Advanced Options')
