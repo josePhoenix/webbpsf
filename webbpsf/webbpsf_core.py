@@ -705,46 +705,51 @@ class MIRI(JWInstrument):
 
         for i in range(4):
             self.filter_list.append('MRS-IFU Ch%d'% (i+1) )
-        self.monochromatic= 8.0
-        self._IFU_pixelscale = {'Ch1':(0.18, 0.19), 'Ch2':(0.28, 0.19), 'Ch3': (0.39, 0.24), 'Ch4': (0.64, 0.27) }
-            # The above tuples give the pixel resolution (perpendicular to the slice, along the slice). 
-            # The pixels are not square.
+        self.monochromatic = 8.0
+        self._IFU_pixelscale = {
+            'Ch1': (0.18, 0.19),
+            'Ch2': (0.28, 0.19),
+            'Ch3': (0.39, 0.24),
+            'Ch4': (0.64, 0.27),
+        }
+        # The above tuples give the pixel resolution (perpendicular to the slice, along the slice).
+        # The pixels are not square.
 
         #self._default_aperture='MIRIM_center' # reference into SIAF for ITM simulation V/O coords
         self.detector_list = ['MIRIM']
-        self._detector2siaf = {'MIRIM':'MIRIM_FULL_ILLCNTR'}
-        self.detector=self.detector_list[0]
+        self._detector2siaf = {'MIRIM': 'MIRIM_FULL_ILLCNTR'}
+        self.detector = self.detector_list[0]
 
     def _validate_config(self):
         """Validate instrument config for MIRI
         """
-        #_log.debug("MIRI validating:    %s, %s, %s " % (self.filter, self.image_mask, self.pupil_mask))
-        if self.filter.startswith("MRS-IFU"): raise NotImplementedError("The MIRI MRS is not yet implemented.")
-
-        #_log.warn("MIRI config validation disabled for now - TBD rewrite ")
+        if self.filter.startswith("MRS-IFU"):
+            raise NotImplementedError("The MIRI MRS is not yet implemented.")
         return
 
-        if self.image_mask is not None or self.pupil_mask is not None:
-            if self.filter == 'F1065C':
-                assert self.image_mask == 'FQPM1065', 'Invalid configuration'
-                assert self.pupil_mask == 'MASKFQPM', 'Invalid configuration'
-            elif self.filter == 'F1140C':
-                assert self.image_mask == 'FQPM1140', 'Invalid configuration'
-                assert self.pupil_mask == 'MASKFQPM', 'Invalid configuration'
-            elif self.filter == 'F1550C':
-                assert self.image_mask == 'FQPM1550', 'Invalid configuration'
-                assert self.pupil_mask == 'MASKFQPM', 'Invalid configuration'
-            elif self.filter == 'F2300C':
-                assert self.image_mask == 'LYOT2300', 'Invalid configuration'
-                assert self.pupil_mask == 'MASKLYOT', 'Invalid configuration'
-            else:
-                #raise ValueError("Invalid configuration selected!")
-                _log.warn("*"*80)
-                _log.warn("WARNING: you appear to have selected an invalid/nonphysical configuration of that instrument!")
-                _log.warn("")
-                _log.warn("I'm going to continue trying the calculation, but YOU are responsible for interpreting")
-                _log.warn("any results in a meaningful fashion or discarding them..")
-                _log.warn("*"*80)
+        # if self.image_mask is not None or self.pupil_mask is not None:
+        #     if self.filter == 'F1065C':
+        #         assert self.image_mask == 'FQPM1065', 'Invalid configuration'
+        #         assert self.pupil_mask == 'MASKFQPM', 'Invalid configuration'
+        #     elif self.filter == 'F1140C':
+        #         assert self.image_mask == 'FQPM1140', 'Invalid configuration'
+        #         assert self.pupil_mask == 'MASKFQPM', 'Invalid configuration'
+        #     elif self.filter == 'F1550C':
+        #         assert self.image_mask == 'FQPM1550', 'Invalid configuration'
+        #         assert self.pupil_mask == 'MASKFQPM', 'Invalid configuration'
+        #     elif self.filter == 'F2300C':
+        #         assert self.image_mask == 'LYOT2300', 'Invalid configuration'
+        #         assert self.pupil_mask == 'MASKLYOT', 'Invalid configuration'
+        #     else:
+        #         #raise ValueError("Invalid configuration selected!")
+        #         _log.warn("*"*80)
+        #         _log.warn("WARNING: you appear to have selected an invalid/nonphysical "
+        #                   "configuration of that instrument!")
+        #         _log.warn("")
+        #         _log.warn("I'm going to continue trying the calculation, but YOU are responsible "
+        #                   "for interpreting")
+        #         _log.warn("any results in a meaningful fashion or discarding them..")
+        #         _log.warn("*"*80)
 
 
     def _addAdditionalOptics(self,optsys, oversample=2):
@@ -753,7 +758,6 @@ class MIRI(JWInstrument):
 
         """
 
-
         # For MIRI coronagraphy, all the coronagraphic optics are rotated the same
         # angle as the instrument is, relative to the primary. So they see the unrotated
         # telescope pupil. Likewise the LRS grism is rotated but its pupil stop is not.
@@ -761,8 +765,7 @@ class MIRI(JWInstrument):
         # We model this by just not rotating till after the coronagraph. Thus we need to
         # un-rotate the primary that was already created in _getOpticalSystem.
 
-
-        defaultpupil = optsys.planes.pop() # throw away the rotated pupil we just previously added
+        defaultpupil = optsys.planes.pop()  # throw away the rotated pupil we just previously added
         _log.debug('Amplitude:'+str(defaultpupil.amplitude_file))
         _log.debug('OPD:'+str(defaultpupil.opd_file))
         opd = defaultpupil.opd_file
