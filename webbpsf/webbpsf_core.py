@@ -26,6 +26,7 @@ import os
 import types
 import glob
 import time
+from collections import namedtuple
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.interpolate, scipy.ndimage
@@ -52,7 +53,7 @@ except:
 import logging
 _log = logging.getLogger('webbpsf')
 
-
+Filter = namedtuple('Filter', ['name', 'filename', 'default_nlambda'])
 
 class SpaceTelescopeInstrument(poppy.instrument.Instrument):
     """ A generic Space Telescope Instrument class.
@@ -112,47 +113,48 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
 
     """
 
+    def _get_filters(self):
+        filter_table = ioascii.read(os.path.join(self._WebbPSF_basepath, self.name, 'filters.tsv'))
+        filter_info = {}
+        filter_list = []  # preserve the order from the table
+
+        for filter_row in filter_table:
+            filter_filename = os.path.join(
+                self._WebbPSF_basepath,
+                self.name,
+                'filters',
+                '{}_throughput.fits'.format(filter_row['filter'])
+            )
+            filter_info[filter_row['filter']] = Filter(
+                name=filter_row['filter'],
+                filename=filter_filename,
+                default_nlambda=filter_row['nlambda']
+            )
+            filter_list.append(filter_row['filter'])
+        return filter_list, filter_info
+
     def __init__(self, name="", pixelscale = 0.064):
         self.name=name
 
         self._WebbPSF_basepath = utils.get_webbpsf_data_path()
 
         self._datapath = self._WebbPSF_basepath + os.sep + self.name + os.sep
-        self._filter = None
         self._image_mask = None
         self._pupil_mask = None
         self.pupil = None
         self.pupilopd = None  #TODO:jlong: is it enough to move this to JWInstr?
 
 
-        self.options = {} # dict for storing other arbitrary options. 
+        self.options = {}  # dict for storing other arbitrary options.
 
-        #create private instance variables. These will be
-        # wrapped just below to create properties with validation.
-        self._filter=None
+        # filter_list   available filter names in order by wavelength for public api
+        # _filters      a dict of named tuples with name, filename, & default_nlambda
+        #               with the filter name as the key
+        self.filter_list, self._filters = self._get_filters()
 
-        filter_table = ioascii.read(self._WebbPSF_basepath + os.sep+ 'filters.txt')
-        wmatch = np.where(filter_table['instrument'] == self.name)
-        self.filter_list = filter_table['filter'][wmatch].tolist()
-        "List of available filters"
-        self._filter_nlambda_default = dict(zip(filter_table['filter'][wmatch], filter_table['nlambda'][wmatch]))
-
-        #self._filter_files= [os.path.abspath(f) for f in glob.glob(self._datapath+os.sep+'filters/*_thru.fits')]
-        #self.filter_list=[os.path.basename(f).split("_")[0] for f in self._filter_files]
-        if len(self.filter_list) ==0: 
-            #self.filter_list=[''] # don't crash for FGS which lacks filters in the usual sense
-            raise ValueError("No filters available!")
-
-        def sort_filters(filtname):
-            try:
-                if name =='MIRI': return int(filtname[1:-1]) # MIRI filters have variable length number parts
-                else: return int(filtname[1:4]) # the rest do not, but have variable numbers of trailing characters
-            except:
-                return filtname
-        self.filter_list.sort(key=sort_filters)
-        self._filter_files = [self._datapath+os.sep+'filters/'+f+"_throughput.fits" for f in self.filter_list]
-
+        # choose a default filter, in case the user doesn't specify one
         self.filter = self.filter_list[0]
+
         self._rotation = None
 
 
@@ -604,8 +606,8 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         return optsys
 
     def _addAdditionalOptics(self,optsys, oversample=2):
-        """Add instrument-internal optics to an optical system, typically coronagraphic or spectrographic in nature. 
-        This method must be provided by derived instrument classes. 
+        """Add instrument-internal optics to an optical system, typically coronagraphic or
+        spectrographic in nature. This method must be provided by derived instrument classes.
 
         Returns
         --------
@@ -623,39 +625,46 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
     def _getSynphotBandpass(self, filtername):
         """ Return a pysynphot.ObsBandpass object for the given desired band. 
 
-        By subclassing this, you can define whatever custom bandpasses are appropriate for your instrument
-
+        By subclassing this, you can define whatever custom bandpasses are appropriate for
+        your instrument
         """
+        obsmode = '{instrument},im,{filter}'.format(instrument=self.name, filter=filtername)
         try:
-            band = pysynphot.ObsBandpass( ('%s,im,%s'%(self.name, filtername)).lower())
+            band = pysynphot.ObsBandpass(obsmode.lower())
+            return band
         except:
-            _log.warn("Filter %s not supported in available pysynphot/CDBS. Falling back to local filter transmission files" % filtername)
-            _log.warn("These may be less accurate.")
+            #TODO:jlong: what exceptions can this raise?
+            _log.warn("Couldn't find filter '{}' in PySynphot, falling back to "
+                      "local throughput files".format(filtername))
 
-            # the requested band is not yet supported in synphot/CDBS. (those files are still a
-            # work in progress...). Therefore, use our local throughput files and create a synphot
-            # transmission object.
-            wf = np.where(np.asarray(self.filter_list)== filtername)[0]
+        # the requested band is not yet supported in synphot/CDBS. (those files are still a
+        # work in progress...). Therefore, use our local throughput files and create a synphot
+        # transmission object.
+        try:
+            filter_info = self._filters[filtername]
+        except KeyError:
+            msg = "Couldn't find filter '{}' for {} in PySynphot or local throughput files"
+            raise RuntimeError(msg.format(filtername, self.name))
 
-            if len(wf) != 1:
-                _log.error("Could not find a match for filter name = %s in the filters for %s." % (filtername, self.name))
-            else:
-                wf = wf[0]
-            # The existing FITS files all have wavelength in ANGSTROMS since that is the pysynphot convention...
-            filterfits = fits.open(self._filter_files[wf])
-            filterdata = filterfits[1].data 
-            try:
-                f1 = filterdata.WAVELENGTH
-                d2 = filterdata.THROUGHPUT
-            except:
-                raise ValueError("The supplied file, %s, does not appear to be a FITS table with WAVELENGTH and THROUGHPUT columns." % self._filter_files[wf] )
-            try:
-                if filterfits[1].header['WAVEUNIT'] != 'Angstrom': raise ValueError("The supplied file, %s, does not have WAVEUNIT = Angstrom as expected." % self._filter_files[wf] )
-            except:
-                _log.warn('The supplied file, %s, does not have a WAVEUNIT keyword. Assuming it is Angstroms.' %  self._filter_files[wf])
- 
-            band = pysynphot.spectrum.ArraySpectralElement(throughput=filterdata.THROUGHPUT,
-                                wave=filterdata.WAVELENGTH, waveunits='angstrom',name=filtername)
+        # The existing FITS files all have wavelength in ANGSTROMS since that is
+        # the pysynphot convention...
+        filterfits = fits.open(filter_info.filename)
+        waveunit = filterfits[1].header.get('WAVEUNIT')
+        if waveunit is None:
+            _log.warn('The supplied file, {}, does not have a WAVEUNIT keyword. Assuming it '
+                      'is Angstroms.'.format(filter_info.filename))
+            waveunit = 'angstrom'
+
+        filterdata = filterfits[1].data
+        try:
+            band = pysynphot.spectrum.ArraySpectralElement(
+                throughput=filterdata.THROUGHPUT, wave=filterdata.WAVELENGTH,
+                waveunits=waveunit, name=filtername
+            )
+        except AttributeError:
+            raise ValueError("The supplied file, %s, does not appear to be a FITS table "
+                             "with WAVELENGTH and THROUGHPUT columns." % filter_info.filename)
+
         return band
 
 #######  JWInstrument classes  #####
