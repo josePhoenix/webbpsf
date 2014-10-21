@@ -726,7 +726,7 @@ class MIRI(JWInstrument):
         if self.filter.startswith("MRS-IFU"):
             raise NotImplementedError("The MIRI MRS is not yet implemented.")
         return
-
+        #TODO:jlong: is this still useful?
         # if self.image_mask is not None or self.pupil_mask is not None:
         #     if self.filter == 'F1065C':
         #         assert self.image_mask == 'FQPM1065', 'Invalid configuration'
