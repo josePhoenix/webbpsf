@@ -17,7 +17,12 @@ class WFIRSTInstrument(webbpsf_core.SpaceTelescopeInstrument):
         secondary_radius = 0.3 * primary_radius
         self.pupil = poppy.CompoundAnalyticOptic((
             poppy.CircularAperture(radius=2.4),  # meters
-            poppy.SecondaryObscuration(secondary_radius=secondary_radius)
+            poppy.AsymmetricSecondaryObscuration(
+                secondary_radius=secondary_radius,
+                support_width=0.05,
+                support_angle=[0.0, 40.0, 120.0, 160.0, 240.0, 280.0],
+                support_angle_offset=-45.0
+            )
         ), name='WFIRST Pupil')
         self.pupilopd = None  # until we have some OPD maps and a FITS pupil of the right shape
 

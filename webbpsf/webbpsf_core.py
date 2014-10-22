@@ -534,26 +534,36 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
             raise TypeError("Not sure what to do with a pupilopd of that type:"+str(type(self.pupilopd)))
 
         #---- set pupil intensity
-        if isinstance(self.pupil, str): # simple filename
-            if os.path.exists(self.pupil):
-                pupil_transmission = self.pupil
-            else:
-                pupil_transmission = os.path.join(
-                    self._WebbPSF_basepath,
-                    self.pupil
-                )
-        elif isinstance(self.pupil, (fits.HDUList, poppy.OpticalElement)):
-            # POPPY can use self.pupil as-is
-            pupil_transmission = self.pupil
-        elif self.pupil is None:
+        if self.pupil is None:
             raise RuntimeError("The pupil shape must be specified in the "
                                "instrument class or by setting self.pupil")
-        else: 
-            raise TypeError("Not sure what to do with a pupil of that type:"+str(type(self.pupil)))
-
-
-        #---- apply pupil intensity and OPD to the optical model
-        optsys.addPupil(name='JWST Pupil', transmission=pupil_transmission, opd=opd_map, opdunits='micron', rotation=self._rotation)
+        if isinstance(self.pupil, poppy.OpticalElement):
+            # supply to POPPY as-is
+            optsys.addPupil(self.pupil)
+        else:
+            # wrap in an optic and supply to POPPY
+            if isinstance(self.pupil, str): # simple filename
+                if os.path.exists(self.pupil):
+                    pupil_transmission = self.pupil
+                else:
+                    pupil_transmission = os.path.join(
+                        self._WebbPSF_basepath,
+                        self.pupil
+                    )
+            elif isinstance(self.pupil, fits.HDUList):
+                # POPPY can use self.pupil as-is
+                pupil_transmission = self.pupil
+            else:
+                raise TypeError("Not sure what to do with a pupil of "
+                                "that type: {}".format(type(self.pupil)))
+            #---- apply pupil intensity and OPD to the optical model
+            optsys.addPupil(
+                name='JWST Pupil',
+                transmission=pupil_transmission,
+                opd=opd_map,
+                opdunits='micron',
+                rotation=self._rotation
+            )
 
         #---- Add defocus if requested
         if 'defocus_waves' in options.keys(): 
@@ -765,7 +775,8 @@ class MIRI(JWInstrument):
         # We model this by just not rotating till after the coronagraph. Thus we need to
         # un-rotate the primary that was already created in _getOpticalSystem.
 
-        defaultpupil = optsys.planes.pop()  # throw away the rotated pupil we just previously added
+
+        defaultpupil = optsys.planes.pop() # throw away the rotated pupil we just previously added
         _log.debug('Amplitude:'+str(defaultpupil.amplitude_file))
         _log.debug('OPD:'+str(defaultpupil.opd_file))
         opd = defaultpupil.opd_file
