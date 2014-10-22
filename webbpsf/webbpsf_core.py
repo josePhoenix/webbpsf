@@ -134,7 +134,7 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         return filter_list, filter_info
 
     def __init__(self, name="", pixelscale = 0.064):
-        self.name=name
+        self.name = name
 
         self._WebbPSF_basepath = utils.get_webbpsf_data_path()
 
@@ -143,7 +143,6 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         self._pupil_mask = None
         self.pupil = None
         self.pupilopd = None  #TODO:jlong: is it enough to move this to JWInstr?
-
 
         self.options = {}  # dict for storing other arbitrary options.
 
@@ -157,14 +156,10 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
 
         self._rotation = None
 
-
-        #self.opd_list = [os.path.basename(os.path.abspath(f)) for f in glob.glob(self._datapath+os.sep+'OPD/*.fits')]
         self.opd_list = [os.path.basename(os.path.abspath(f)) for f in glob.glob(self._datapath+os.sep+'OPD/OPD*.fits')]
         self.opd_list.sort()
         if len(self.opd_list) > 0:
             self.pupilopd = self.opd_list[-1]
-            #self.pupilopd = self.opd_list[len(self.opd_list)/2]
-        #self.opd_list.insert(0,"Zero OPD (Perfect)")
 
         self._image_mask=None
         self.image_mask_list=[]
@@ -182,7 +177,8 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         self.detector_list = ['Default']
         self._detector = None
 
-        self.detector_coordinates = (0,0) # where is the source on the detector, in 'Science frame' pixels?
+        # where is the source on the detector, in 'Science frame' pixels?
+        self.detector_coordinates = (0, 0)
 
     def _validate_config(self):
         """Validate the configuration in some sense; details depend on instrument.
@@ -192,23 +188,11 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         """
         raise NotImplementedError("Subclasses must implement _validate_config")
 
-    # create properties with error checking
-#    @property
-#    def filter(self):
-#        'Currently selected filter name (e.g. "F200W")'
-#        return self._filter
-#    @filter.setter
-#    def filter(self, value):
-#        value = value.upper() # force to uppercase
-#        if value not in self.filter_list:
-#            raise ValueError("Instrument %s doesn't have a filter called %s." % (self.name, value))
-#        self._filter = value
-#        self._validate_config()
-
     @property
     def image_mask(self):
-        'Currently selected image plane mask, or None for direct imaging'
+        """Currently selected image plane mask, or None for direct imaging"""
         return self._image_mask
+
     @image_mask.setter
     def image_mask(self, name):
         if name is "": name = None
@@ -223,44 +207,47 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
 
     @property
     def pupil_mask(self):
-        'Currently selected Lyot pupil mask, or None for direct imaging'
+        """Currently selected Lyot pupil mask, or None for direct imaging"""
         return self._pupil_mask
+
     @pupil_mask.setter
     def pupil_mask(self,name):
-        if name is "": name = None
+        if name is "":
+            name = None
         if name is not None:
             if name in self.pupil_mask_list:
-                pass # there's a perfect match, this is fine.
+                pass  # there's a perfect match, this is fine.
             else:
                 name = name.upper() # force to uppercase
                 if name not in self.pupil_mask_list:
                     raise ValueError("Instrument %s doesn't have a pupil mask called '%s'." % (self.name, name))
 
         self._pupil_mask = name
-
  
     @property
     def detector(self):
-        'Currently selected detector name (for instruments with multiple detectors)'
+        """Currently selected detector name (for instruments with multiple detectors)"""
         return self._detector.name
+
     @detector.setter
-    def detector(self,detname):
-        #if name is "": name = None
+    def detector(self, detname):
         if detname is not None:
-            detname = detname.upper() # force to uppercase
+            detname = detname.upper()  # force to uppercase
             try:
                 siaf_aperture_name = self._detector2siaf[detname]
             except:
-                raise ValueError("Unknown name: {0} is not a valid known name for a detector for instrument {1}".format(detname, self.name))
+                raise ValueError("Unknown name: {0} is not a valid known name for a detector "
+                                 "for instrument {1}".format(detname, self.name))
             self._detector = DetectorGeometry(self.name, siaf_aperture_name, shortname=detname)
 
     def __str__(self):
-        return "SpaceTelescopeInstrument name="+self.name
+        return "<{instrument_name}>".format(instrument_name=self.name)
 
     #----- actual optical calculations follow here -----
-    def calcPSF(self, outfile=None, source=None, filter=None,  nlambda=None, monochromatic=None ,
-            fov_arcsec=None, fov_pixels=None,  oversample=None, detector_oversample=None, fft_oversample=None, calc_oversample=None, rebin=True,
-            clobber=True, display=False, return_intermediates=False, **kwargs):
+    def calcPSF(self, outfile=None, source=None, filter=None, nlambda=None, monochromatic=None,
+                fov_arcsec=None, fov_pixels=None,  oversample=None, detector_oversample=None,
+                fft_oversample=None, calc_oversample=None, rebin=True, clobber=True, display=False,
+                return_intermediates=False, **kwargs):
         """ Compute a PSF.
 
         The result can either be written to disk (set outfile="filename") or else will be returned as
