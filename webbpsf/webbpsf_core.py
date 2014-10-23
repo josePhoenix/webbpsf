@@ -73,7 +73,7 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
     available as object attributes: `filter`, `image_mask`, `pupil_mask`, `pupilopd`. More advanced
     configuration can be done by editing the :ref:`SpaceTelescopeInstrument.options` dictionary, either by passing options to __init__ or by directly editing the dict afterwards.
     """
-
+    telescope = "Generic Space Telescope"
     options = {} # options dictionary
     """ A dictionary capable of storing other arbitrary options, for extensibility. The following are all optional, and
     may or may not be meaningful depending on which instrument is selected.
@@ -456,7 +456,7 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         """
         output_mode = options.get('output_mode',conf.default_output_mode)
 
-        if output_mode == 'Mock JWST DMS Output':
+        if output_mode == 'Mock JWST DMS Output': #TODO:jlong: move out to JWInstrument
             # first rebin down to detector sampling
             # then call mockdms routines to embed in larger detector etc
             raise NotImplementedError('Not implemented yet')
@@ -503,9 +503,14 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         if detector_oversample is None: detector_oversample = fft_oversample
 
         _log.debug("Oversample: %d  %d " % (fft_oversample, detector_oversample))
-        optsys = poppy.OpticalSystem(name='JWST+'+self.name, oversample=fft_oversample)
-        if 'source_offset_r' in options.keys(): optsys.source_offset_r = options['source_offset_r']
-        if 'source_offset_theta' in options.keys(): optsys.source_offset_theta = options['source_offset_theta']
+        optsys = poppy.OpticalSystem(
+            name='{telescope}+{instrument}'.format(telescope=self.telescope, instrument=self.name),
+            oversample=fft_oversample
+        )
+        if 'source_offset_r' in options.keys():
+            optsys.source_offset_r = options['source_offset_r']
+        if 'source_offset_theta' in options.keys():
+            optsys.source_offset_theta = options['source_offset_theta']
 
 
         #---- set pupil OPD
@@ -545,7 +550,7 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
                                 "that type: {}".format(type(self.pupil)))
             #---- apply pupil intensity and OPD to the optical model
             optsys.addPupil(
-                name='JWST Pupil',
+                name='{} Pupil'.format(self.telescope),
                 transmission=pupil_transmission,
                 opd=opd_map,
                 opdunits='micron',
@@ -666,7 +671,10 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
 
 #######  JWInstrument classes  #####
 
+
 class JWInstrument(SpaceTelescopeInstrument):
+    telescope = "JWST"
+
     def __init__(self, *args, **kwargs):
         super(JWInstrument, self).__init__(*args, **kwargs)
 
