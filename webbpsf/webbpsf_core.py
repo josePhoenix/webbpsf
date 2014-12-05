@@ -141,8 +141,19 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
         self._datapath = self._WebbPSF_basepath + os.sep + self.name + os.sep
         self._image_mask = None
         self._pupil_mask = None
+
         self.pupil = None
-        self.pupilopd = None  #TODO:jlong: is it enough to move this to JWInstr?
+        "Filename *or* fits.HDUList for JWST pupil mask. Usually there is no need to change this."
+        #TODO:jlong: is it enough to move this to JWInstr?
+        self.pupilopd = None   # This can optionally be set to a tuple indicating (filename, slice in datacube)
+        """Filename *or* fits.HDUList for JWST pupil OPD.
+
+
+        This can be either a full absolute filename, or a relative name in which case it is
+        assumed to be within the instrument's `data/OPDs/` directory, or an actual fits.HDUList object corresponding to such a file.
+        If the file contains a datacube, you may set this to a tuple (filename, slice) to select a given slice, or else
+        the first slice will be used."""
+        self.pupil_radius = None  # Set when loading FITS file in _getOpticalSystem
 
         self.options = {}  # dict for storing other arbitrary options.
 
@@ -531,7 +542,7 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
                                "instrument class or by setting self.pupil")
         if isinstance(self.pupil, poppy.OpticalElement):
             # supply to POPPY as-is
-            optsys.addPupil(self.pupil)
+            pupil_optic = optsys.addPupil(self.pupil)
         else:
             # wrap in an optic and supply to POPPY
             if isinstance(self.pupil, str): # simple filename
@@ -549,20 +560,27 @@ class SpaceTelescopeInstrument(poppy.instrument.Instrument):
                 raise TypeError("Not sure what to do with a pupil of "
                                 "that type: {}".format(type(self.pupil)))
             #---- apply pupil intensity and OPD to the optical model
-            optsys.addPupil(
+            pupil_optic = optsys.addPupil(
                 name='{} Pupil'.format(self.telescope),
                 transmission=pupil_transmission,
                 opd=opd_map,
                 opdunits='micron',
                 rotation=self._rotation
             )
+        self.pupil_radius = pupil_optic.pupil_diam / 2.0
+
 
         #---- Add defocus if requested
         if 'defocus_waves' in options.keys(): 
            defocus_waves = options['defocus_waves'] 
            defocus_wavelength = float(options['defocus_wavelength']) if 'defocus_wavelength' in options.keys() else 2.0e-6
            _log.info("Adding defocus of %d waves at %.2f microns" % (defocus_waves, defocus_wavelength *1e6))
-           lens = poppy.ThinLens(name='Defocus', nwaves=defocus_waves, reference_wavelength=defocus_wavelength)
+           lens = poppy.ThinLens(
+               name='Defocus',
+               nwaves=defocus_waves,
+               reference_wavelength=defocus_wavelength,
+               radius=jwpupil.pupil_diam
+           )
            optsys.addPupil(optic=lens)
 
 
@@ -999,20 +1017,57 @@ class NIRCam(JWInstrument):
         elif self.pupil_mask == 'WEDGELYOT':
             optsys.addPupil(transmission=self._datapath+"/optics/NIRCam_Lyot_Sinc.fits", name=self.pupil_mask, shift=shift)
         elif self.pupil_mask == 'WEAK LENS +4':
-            optsys.addPupil(poppy.ThinLens(name='Weak Lens +4', nwaves=WLP4_diversity/WL_wavelength, reference_wavelength=WL_wavelength))
+            optsys.addPupil(poppy.ThinLens(
+                name='Weak Lens +4',
+                nwaves=WLP4_diversity / WL_wavelength,
+                reference_wavelength=WL_wavelength*1e-6, #convert microns to meters
+                radius=self.pupil_radius
+            ))
         elif self.pupil_mask == 'WEAK LENS +8':
-            optsys.addPupil(poppy.ThinLens(name='Weak Lens +8', nwaves=WLP8_diversity/WL_wavelength, reference_wavelength=WL_wavelength))
+            optsys.addPupil(poppy.ThinLens(
+                name='Weak Lens +8',
+                nwaves=WLP8_diversity / WL_wavelength,
+                reference_wavelength=WL_wavelength*1e-6,
+                radius=self.pupil_radius
+            ))
         elif self.pupil_mask == 'WEAK LENS -8':
-            optsys.addPupil(poppy.ThinLens(name='Weak Lens -8', nwaves=WLM8_diversity/WL_wavelength, reference_wavelength=WL_wavelength))
+            optsys.addPupil(poppy.ThinLens(
+                name='Weak Lens -8',
+                nwaves=WLM8_diversity / WL_wavelength,
+                reference_wavelength=WL_wavelength*1e-6,
+                radius=self.pupil_radius
+            ))
         elif self.pupil_mask == 'WEAK LENS +12 (=4+8)':
             stack = poppy.CompoundAnalyticOptic(name='Weak Lens Stack +12', opticslist=[
-                poppy.ThinLens(name='Weak Lens +4', nwaves=WLP4_diversity/WL_wavelength, reference_wavelength=WL_wavelength),
-                poppy.ThinLens(name='Weak Lens +8', nwaves=WLP8_diversity/WL_wavelength, reference_wavelength=WL_wavelength)])
+                poppy.ThinLens(
+                    name='Weak Lens +4',
+                    nwaves=WLP4_diversity / WL_wavelength,
+                    reference_wavelength=WL_wavelength*1e-6,
+                    radius=self.pupil_radius
+                ),
+                poppy.ThinLens(
+                    name='Weak Lens +8',
+                    nwaves=WLP8_diversity / WL_wavelength,
+                    reference_wavelength=WL_wavelength*1e-6,
+                    radius=self.pupil_radius
+                )]
+            )
             optsys.addPupil(stack)
         elif self.pupil_mask == 'WEAK LENS -4 (=4-8)':
             stack = poppy.CompoundAnalyticOptic(name='Weak Lens Stack -4', opticslist=[
-                poppy.ThinLens(name='Weak Lens +4', nwaves=WLP4_diversity/WL_wavelength, reference_wavelength=WL_wavelength),
-                poppy.ThinLens(name='Weak Lens -8', nwaves=WLM8_diversity/WL_wavelength, reference_wavelength=WL_wavelength)])
+                poppy.ThinLens(
+                    name='Weak Lens +4',
+                    nwaves=WLP4_diversity / WL_wavelength,
+                    reference_wavelength=WL_wavelength*1e-6,
+                    radius=self.pupil_radius
+                ),
+                poppy.ThinLens(
+                    name='Weak Lens -8',
+                    nwaves=WLM8_diversity / WL_wavelength,
+                    reference_wavelength=WL_wavelength*1e-6,
+                    radius=self.pupil_radius
+                )]
+            )
             optsys.addPupil(stack)
 
 

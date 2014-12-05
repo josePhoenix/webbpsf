@@ -70,3 +70,7 @@ distribute-*.tar.gz
 
 # PyCharm
 .idea
+
+# Example IPython notebook files
+.ipynb_checkpoints/
+my_log.txt
