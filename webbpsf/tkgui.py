@@ -27,13 +27,14 @@ except ImportError:
     _HAS_PYSYNPHOT_INSTALLED = False
     _HAS_PYSYNPHOT_DATA = False
 
+
 import poppy
 from webbpsf import webbpsf_core
 
 
+
 class ConfigurationError(Exception):
     pass
-
 
 class Options(object):
     """
