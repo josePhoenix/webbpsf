@@ -1,10 +1,12 @@
-import os, sys
+import os
+import sys
+import re
 import ConfigParser
 
 import logging
 _log = logging.getLogger('webbpsf')
 
-from . import conf
+from . import conf, MINIMUM_DATA_VERSION
 
 
 def restart_logging(verbose=True):
@@ -107,6 +109,29 @@ def setup_logging(level='INFO',  filename=None):
     conf.logging_filename = filename
     restart_logging(verbose=True)
 
+class DataPackageError(Exception):
+    pass
+
+def check_data_version(webbpsf_path):
+    version_cookie_path = os.path.join(webbpsf_path, 'version.txt')
+    if not os.path.exists(version_cookie_path):
+        return False
+
+    version_cookie = open(version_cookie_path).readlines()
+    assert len(version_cookie) > 0, "Zero-line data package version.txt"
+    match = re.match(r'__version__ = (\d+)\.(\d+)\.(\d+)', version_cookie[0])
+    if match is None:
+        return False
+
+    assert len(match.groups()) == 3, "Couldn't parse data package's version.txt"
+
+    # turn string tuple into int tuple for comparison
+    version_tuple = tuple(map(int, match.groups()))
+    if version_tuple >= MINIMUM_DATA_VERSION:
+        return True
+    else:
+        return False
+
 MISSING_WEBBPSF_DATA_MESSAGE = """
  *********  ERROR  ******  ERROR  ******  ERROR  ******  ERROR  *************
  *                                                                          *
@@ -148,6 +173,13 @@ def get_webbpsf_data_path():
     if not os.path.isdir(path):
         raise IOError("WEBBPSF_PATH ({}) is not a valid directory path!".format(path))
 
+    # check the version of the data package
+    if not check_data_version(path):
+        raise DataPackageError(
+            "The data package at {} does not meet the minimum version "
+            "({}.{}.{}) required for this version of WebbPSF ".format(
+                path, *MINIMUM_DATA_VERSION
+        ))
     return path
 
 

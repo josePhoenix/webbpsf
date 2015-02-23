@@ -17,11 +17,6 @@ Developed by Marshall Perrin and contributors at STScI, 2010-2015.
 from ._astropy_init import *
 # ----------------------------------------------------------------------------
 
-# For egg_info test builds to pass, put package imports here.
-#if not _ASTROPY_SETUP_:
-#    from example_mod import *
-#import warnings
-
 import astropy
 from astropy import config as _config
 
@@ -57,6 +52,7 @@ class Conf(_config.ConfigNamespace):
     last_version_ran =  _config.ConfigItem('0.0', 'Most recently used version of WebbPSF on this computer. This is used for detecting new or upgraded installations and providing some additional information to users.')
 
 conf = Conf()
+MINIMUM_DATA_VERSION = (0, 3, 1)
 
 def _save_config():
     """ Save package configuration variables using the Astropy.config system 
@@ -80,7 +76,6 @@ from .webbpsf_core import (Instrument, JWInstrument, NIRCam, NIRISS, NIRSpec,
     MIRI, FGS)
 
 from . import utils
-from .utils import setup_logging, system_diagnostic #, _check_for_new_install, _restart_logging
 
 if not _ASTROPY_SETUP_:
 
