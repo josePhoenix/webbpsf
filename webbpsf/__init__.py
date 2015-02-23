@@ -77,6 +77,9 @@ from .webbpsf_core import (Instrument, JWInstrument, NIRCam, NIRISS, NIRSpec,
 
 from . import utils
 
+# make these accessible under the main webbpsf namespace
+from .utils import setup_logging, system_diagnostic
+
 if not _ASTROPY_SETUP_:
 
     utils.check_for_new_install()    # display informative message if so.
