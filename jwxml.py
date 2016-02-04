@@ -21,8 +21,13 @@ import logging
 import unittest
 import os
 _log = logging.getLogger('jwxml')
-from . import conf
 
+
+try:
+    import webbpsf
+    _HAS_WEBBPSF=True
+except ImportError:
+    _HAS_WEBBPSF=False
 
 #---------------------------------------------------------------------------------
 #   Mirror Move related classes
@@ -545,7 +550,7 @@ class SIAF(object):
     fgs_siaf.plot()                   # plot all apertures in this file
 
     """
-    def __init__(self, instr='NIRISS', basepath=None, filename=None, **kwargs):
+    def __init__(self, instr='NIRISS', filename=None, basepath=None, **kwargs):
             #basepath="/Users/mperrin/Dropbox/JWST/Optics Documents/SIAF/"
         """ Read a SIAF from disk
 
@@ -559,16 +564,22 @@ class SIAF(object):
             Alternative method to specify a specific SIAF XML file.
         """
 
+
+
         if instr not in ['NIRCam', 'NIRSpec', 'NIRISS', 'MIRI', 'FGS']:
             raise ValueError("Invalid instrument name: {0}. Note that this is case sensitive.".format(instr))
 
         self.instrument=instr
 
-        if basepath is None:
-            from utils import get_webbpsf_data_path
-            basepath = os.path.join(get_webbpsf_data_path(), instr)
 
         if filename is None:
+            if basepath is None:
+                if _HAS_WEBBPSF:
+                    from webbpsf.utils import get_webbpsf_data_path
+                    basepath = os.path.join(get_webbpsf_data_path(), instr)
+                else:
+                    basepath='.'
+
             self.filename=os.path.join(basepath, instr+'_SIAF.xml')
         else:
             self.filename = filename
@@ -844,8 +855,6 @@ def iterchildren(element, tag=None):
 
 if __name__== "__main__":
     logging.basicConfig(level=logging.DEBUG,format='%(name)-10s: %(levelname)-8s %(message)s')
-    #unittest.main()
-    #sur = SUR('/itar/jwst/wss/MMS_Delivery/09_MMS_Source_Code/wfsc_mcs~1.1.2/wfsc_mcs/fqt/tc7/sur_ok_rel_gl.xml')
 
     s = SIAF()
 
