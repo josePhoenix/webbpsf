@@ -45,11 +45,8 @@ before_install:
 install:
   # CONDA
   - echo "TRAVIS_PYTHON_VERSION = $TRAVIS_PYTHON_VERSION"
-  - conda create --yes -n test -c "python=$TRAVIS_PYTHON_VERSION"
+  - conda create --yes -n test -c "python=$TRAVIS_PYTHON_VERSION" "numpy=$NUMPY_VERSION" pytest pip Cython
   - source activate test
-
-  # CORE DEPENDENCIES
-  - $CONDA_INSTALL numpy=$NUMPY_VERSION pytest pip Cython jinja2
 
   # ASTROPY
   - if [[ $ASTROPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/astropy/astropy.git#egg=astropy; fi
