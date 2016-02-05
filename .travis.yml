@@ -49,7 +49,7 @@ install:
 
   # ASTROPY
   - if [[ $ASTROPY_VERSION == development ]]; then pip install git+http://github.com/astropy/astropy.git#egg=astropy; fi
-  - if [[ $ASTROPY_VERSION == stable ]]; then conda install numpy=$NUMPY_VERSION astropy; fi
+  - if [[ $ASTROPY_VERSION == stable ]]; then conda install --yes numpy=$NUMPY_VERSION astropy; fi
 
   # OPTIONAL DEPENDENCIES
   # Here you can add any dependencies your package may have. You can use
@@ -58,7 +58,7 @@ install:
   # install since this ensures Numpy does not get automatically upgraded.
 
   # matplotlib and SciPy
-  - conda install numpy=$NUMPY_VERSION matplotlib scipy
+  - conda install --yes numpy=$NUMPY_VERSION matplotlib scipy
   # POPPY
   - if [[ $POPPY_VERSION == development ]]; then pip install git+http://github.com/mperrin/poppy.git#egg=poppy; fi
   - if [[ $POPPY_VERSION == stable ]]; then pip install poppy; fi
