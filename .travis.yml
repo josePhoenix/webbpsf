@@ -9,28 +9,28 @@ python:
     - "3.5"
 
 env:
-  - ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.8
-  - ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.8
-  - ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.8
-  - ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.8
-  - ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.9
-  - ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.9
-  - ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.9
-  - ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.9
-  - ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.10
-  - ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.10
-  - ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.10
-  - ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.10
+  - POPPY_VERSION=development ASTROPY_VERSION=development NUMPY_VERSION=1.8
+  - POPPY_VERSION=development ASTROPY_VERSION=stable      NUMPY_VERSION=1.8
+  - POPPY_VERSION=development ASTROPY_VERSION=development NUMPY_VERSION=1.9
+  - POPPY_VERSION=development ASTROPY_VERSION=stable      NUMPY_VERSION=1.9
+  - POPPY_VERSION=development ASTROPY_VERSION=development NUMPY_VERSION=1.10
+  - POPPY_VERSION=development ASTROPY_VERSION=stable      NUMPY_VERSION=1.10
+  - POPPY_VERSION=stable      ASTROPY_VERSION=development NUMPY_VERSION=1.8
+  - POPPY_VERSION=stable      ASTROPY_VERSION=stable      NUMPY_VERSION=1.8
+  - POPPY_VERSION=stable      ASTROPY_VERSION=development NUMPY_VERSION=1.9
+  - POPPY_VERSION=stable      ASTROPY_VERSION=stable      NUMPY_VERSION=1.9
+  - POPPY_VERSION=stable      ASTROPY_VERSION=development NUMPY_VERSION=1.10
+  - POPPY_VERSION=stable      ASTROPY_VERSION=stable      NUMPY_VERSION=1.10
 
 matrix:
   fast_finish: true
   allow_failures:
-    - env: ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.8
-    - env: ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.8
-    - env: ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.9
-    - env: ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.9
-    - env: ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.10
-    - env: ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.10
+    - env: POPPY_VERSION=stable      ASTROPY_VERSION=development NUMPY_VERSION=1.8
+    - env: POPPY_VERSION=stable      ASTROPY_VERSION=stable      NUMPY_VERSION=1.8
+    - env: POPPY_VERSION=stable      ASTROPY_VERSION=development NUMPY_VERSION=1.9
+    - env: POPPY_VERSION=stable      ASTROPY_VERSION=stable      NUMPY_VERSION=1.9
+    - env: POPPY_VERSION=stable      ASTROPY_VERSION=development NUMPY_VERSION=1.10
+    - env: POPPY_VERSION=stable      ASTROPY_VERSION=stable      NUMPY_VERSION=1.10
 
 before_install:
   # Use utf8 encoding. Should be default, but this is insurance against
