@@ -45,11 +45,11 @@ before_install:
 install:
   # CONDA
   - echo "TRAVIS_PYTHON_VERSION = $TRAVIS_PYTHON_VERSION"
-  - conda create --yes -n test "python=$TRAVIS_PYTHON_VERSION" "numpy=$NUMPY_VERSION" pytest pip Cython
+  - conda create --yes -n test "python=$TRAVIS_PYTHON_VERSION" "numpy=$NUMPY_VERSION" pytest pip Cython jinja2
   - source activate test
 
   # ASTROPY
-  - if [[ $ASTROPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/astropy/astropy.git#egg=astropy; fi
+  - if [[ $ASTROPY_VERSION == development ]]; then pip install git+http://github.com/astropy/astropy.git#egg=astropy; fi
   - if [[ $ASTROPY_VERSION == stable ]]; then $CONDA_INSTALL numpy=$NUMPY_VERSION astropy; fi
 
   # OPTIONAL DEPENDENCIES
@@ -61,8 +61,8 @@ install:
   # matplotlib and SciPy
   - $CONDA_INSTALL numpy=$NUMPY_VERSION matplotlib scipy
   # POPPY
-  - if [[ $POPPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/mperrin/poppy.git#egg=poppy; fi
-  - if [[ $POPPY_VERSION == stable ]]; then $PIP_INSTALL poppy; fi
+  - if [[ $POPPY_VERSION == development ]]; then pip install git+http://github.com/mperrin/poppy.git#egg=poppy; fi
+  - if [[ $POPPY_VERSION == stable ]]; then pip install poppy; fi
 
 before_script:
     # Get WebbPSF data files (just a subset of the usual 500 MB!) and set up environment variable
