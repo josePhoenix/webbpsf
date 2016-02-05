@@ -5,115 +5,69 @@ sudo: false
 
 python:
     - 2.7
-    # - 3.3
     - 3.4
-    # This is just for "egg_info".  All other builds are explicitly given in the matrix
+    - 3.5
+
 env:
-    global:
-        # The following versions are the 'default' for tests, unless
-        # overidden underneath. They are defined here in order to save having
-        # to repeat them for all configurations.
-        - NUMPY_VERSION=1.9
-        - ASTROPY_VERSION=stable
-        - POPPY_VERSION=development
-        - CONDA_INSTALL='conda install -c astropy-ci-extras --yes'
-        - PIP_INSTALL='pip install'
-    matrix:
-        - SETUP_CMD='egg_info'
+  - SETUP_CMD=egg_info
+  - SETUP_CMD=test
+  - ASTROPY_VERSION=development
+  - ASTROPY_VERSION=stable
+  - POPPY_VERSION=stable
+  - POPPY_VERSION=development
+  - NUMPY_VERSION=1.8
+  - NUMPY_VERSION=1.9
+  - NUMPY_VERSION=1.10
 
 matrix:
-    include:
-        # Check for sphinx doc build warnings - we do this first because it
-        # may run for a long time
-        - python: 2.7
-          env: SETUP_CMD='build_sphinx' # -w'
-
-        # Try Astropy development version
-        - python: 2.7
-          env: ASTROPY_VERSION=development SETUP_CMD='test'
-        # - python: 3.3
-        #   env: ASTROPY_VERSION=development SETUP_CMD='test'
-
-        # Try all python versions with the latest numpy
-        - python: 2.7
-          env: SETUP_CMD='test'
-        - python: 3.4
-          env: SETUP_CMD='test'
-
-        # Try older numpy version
-        - python: 2.7
-          env: NUMPY_VERSION=1.8 SETUP_CMD='test'
-
-        # Try released POPPY version
-        - python: 2.7
-          env: POPPY_VERSION=stable SETUP_CMD='test'
-
-        # Try released POPPY version and older NumPy
-        - python: 2.7
-          env: POPPY_VERSION=stable NUMPY_VERSION=1.8 SETUP_CMD='test'
+  fast_finish: true
+  allow_failures:
+    - env: POPPY_VERSION=development
+    - env: ASTROPY_VERSION
 
 before_install:
-
-    # Use utf8 encoding. Should be default, but this is insurance against
-    # future changes
-    - export PYTHONIOENCODING=UTF8
-    - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
-    - chmod +x miniconda.sh
-    - ./miniconda.sh -b
-    - export PATH=/home/travis/miniconda2/bin:$PATH
-    - conda update --yes conda
+  # Use utf8 encoding. Should be default, but this is insurance against
+  # future changes
+  - export PYTHONIOENCODING=UTF8
+  - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH="$HOME/miniconda2/bin:$PATH"
+  - conda update --yes conda
 
 install:
+  # CONDA
+  - conda create --yes -n test -c python=$TRAVIS_PYTHON_VERSION
+  - source activate test
 
-    # CONDA
-    - conda create --yes -n test -c astropy-ci-extras python=$TRAVIS_PYTHON_VERSION
-    - source activate test
+  # CORE DEPENDENCIES
+  - $CONDA_INSTALL numpy=$NUMPY_VERSION pytest pip Cython jinja2
 
-    # CORE DEPENDENCIES
-    - $CONDA_INSTALL numpy=$NUMPY_VERSION pytest pip Cython jinja2
-    - $PIP_INSTALL pytest-xdist
+  # ASTROPY
+  - if [[ $ASTROPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/astropy/astropy.git#egg=astropy; fi
+  - if [[ $ASTROPY_VERSION == stable ]]; then $CONDA_INSTALL numpy=$NUMPY_VERSION astropy; fi
 
-    # ASTROPY
-    - if [[ $ASTROPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/astropy/astropy.git#egg=astropy; fi
-    - if [[ $ASTROPY_VERSION == stable ]]; then $CONDA_INSTALL numpy=$NUMPY_VERSION astropy; fi
+  # OPTIONAL DEPENDENCIES
+  # Here you can add any dependencies your package may have. You can use
+  # conda for packages available through conda, or pip for any other
+  # packages. You should leave the `numpy=$NUMPY_VERSION` in the `conda`
+  # install since this ensures Numpy does not get automatically upgraded.
 
-    # OPTIONAL DEPENDENCIES
-    # Here you can add any dependencies your package may have. You can use
-    # conda for packages available through conda, or pip for any other
-    # packages. You should leave the `numpy=$NUMPY_VERSION` in the `conda`
-    # install since this ensures Numpy does not get automatically upgraded.
-
-    # matplotlib and SciPy
-    - $CONDA_INSTALL numpy=$NUMPY_VERSION matplotlib scipy
-    # POPPY
-    - if [[ $POPPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/mperrin/poppy.git#egg=poppy; fi
-    - if [[ $POPPY_VERSION == stable ]]; then $PIP_INSTALL poppy; fi
-
-    # DOCUMENTATION DEPENDENCIES
-    # build_sphinx needs sphinx and matplotlib (for plot_directive). Note that
-    # this matplotlib will *not* work with py 3.x, but our sphinx build is
-    # currently 2.7, so that's fine
-    - if [[ $SETUP_CMD == build_sphinx* ]]; then $CONDA_INSTALL numpy=$NUMPY_VERSION Sphinx matplotlib; fi
-
-    # COVERAGE DEPENDENCIES
-    - if [[ $SETUP_CMD == 'test --coverage' ]]; then $PIP_INSTALL coverage coveralls; fi
+  # matplotlib and SciPy
+  - $CONDA_INSTALL numpy=$NUMPY_VERSION matplotlib scipy
+  # POPPY
+  - if [[ $POPPY_VERSION == development ]]; then $PIP_INSTALL git+http://github.com/mperrin/poppy.git#egg=poppy; fi
+  - if [[ $POPPY_VERSION == stable ]]; then $PIP_INSTALL poppy; fi
 
 before_script:
     # Get WebbPSF data files (just a subset of the usual 500 MB!) and set up environment variable
-    - wget http://www.stsci.edu/~mperrin/software/webbpsf/minimal-webbpsf-data.tar.gz  -O /tmp/minimal-webbpsf-data.tar.gz
+    - wget http://www.stsci.edu/~mperrin/software/webbpsf/minimal-webbpsf-data.tar.gz -O /tmp/minimal-webbpsf-data.tar.gz
     - tar -xzf /tmp/minimal-webbpsf-data.tar.gz
-    - export WEBBPSF_PATH=$PWD/webbpsf-data 
-    - export WEBBPSF_SKIP_CHECK=1
+    - export WEBBPSF_PATH="$PWD/webbpsf-data"
 
 script:
    - python setup.py $SETUP_CMD
 
-after_success:
-    # If coveralls.io is set up for this package, uncomment the line
-    # below and replace "packagename" with the name of your package.
-    # The coveragerc file may be customized as needed for your package.
-    # - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls --rcfile='packagename/tests/coveragerc'; fi
 notifications:
   email:
-    - mperrin@stsci.edu
     - jlong@stsci.edu
