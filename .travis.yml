@@ -9,21 +9,46 @@ python:
     - 3.5
 
 env:
-  - SETUP_CMD=egg_info
-  - SETUP_CMD=test
-  - ASTROPY_VERSION=development
-  - ASTROPY_VERSION=stable
-  - POPPY_VERSION=stable
-  - POPPY_VERSION=development
-  - NUMPY_VERSION=1.8
-  - NUMPY_VERSION=1.9
-  - NUMPY_VERSION=1.10
+  - SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.8
+  - SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.8
+  - SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.8
+  - SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.8
+  - SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.8
+  - SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.8
+  - SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.8
+  - SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.8
+  - SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.9
+  - SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.9
+  - SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.9
+  - SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.9
+  - SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.9
+  - SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.9
+  - SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.9
+  - SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.9
+  - SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.10
+  - SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.10
+  - SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.10
+  - SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.10
+  - SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.10
+  - SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=development NUMPY_VERSION=1.10
+  - SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.10
+  - SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=development NUMPY_VERSION=1.10
 
 matrix:
   fast_finish: true
   allow_failures:
-    - env: POPPY_VERSION=development
-    - env: ASTROPY_VERSION
+    - env: SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.8
+    - env: SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.8
+    - env: SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.8
+    - env: SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.8
+    - env: SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.9
+    - env: SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.9
+    - env: SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.9
+    - env: SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.9
+    - env: SETUP_CMD=egg_info ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.10
+    - env: SETUP_CMD=test     ASTROPY_VERSION=development POPPY_VERSION=stable      NUMPY_VERSION=1.10
+    - env: SETUP_CMD=egg_info ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.10
+    - env: SETUP_CMD=test     ASTROPY_VERSION=stable      POPPY_VERSION=stable      NUMPY_VERSION=1.10
 
 before_install:
   # Use utf8 encoding. Should be default, but this is insurance against
