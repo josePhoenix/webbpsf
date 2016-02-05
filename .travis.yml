@@ -70,7 +70,7 @@ before_script:
     - export WEBBPSF_PATH="$PWD/webbpsf-data"
 
 script:
-   - python setup.py $SETUP_CMD
+   - python setup.py test
 
 notifications:
   email:
