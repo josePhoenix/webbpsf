@@ -1,12 +1,10 @@
-
-""" jwxml: Various Python classes for parsing JWST-related information in XML files
+"""
+jwxml: Various Python classes for parsing JWST-related information in XML files
 
 * SUR: a segment update request file (mirror move command from the WAS to the MCS)
 * Update: a single mirror update inside of a SUR
 * SIAF: a SIAF file (Science Instrument Aperture File, listing the defined apertures for a given instrument)
 * Aperture: a single aperture inside a SIAF
-
-
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -419,10 +417,7 @@ class Aperture(object):
             Add annotations for detector (0,0) pixels
         title : str
             If set, add a label to the plot indicating which frame was plotted.
-
         """
-
-
         if units is None:
             units='arcsec'
 
@@ -456,9 +451,12 @@ class Aperture(object):
 
         x2 = np.concatenate([x, [x[0]]]) # close the box
         y2 = np.concatenate([y, [y[0]]])
-        #print((x2,y2))
-        ax.plot(x2*scale,y2*scale, color=color) # convert arcsec to arcmin
 
+        # convert arcsec to arcmin and plot
+        if color is not None:
+            ax.plot(x2 * scale, y2 * scale, color=color)
+        else:
+            ax.plot(x2 * scale, y2 * scale)
 
         if need_to_flip_axis:
             #print("flipped x axis")
