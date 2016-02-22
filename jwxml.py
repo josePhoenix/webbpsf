@@ -357,7 +357,7 @@ class Aperture(object):
         #rad2arcsec = 1./(np.pi/180/60/60)
         dV2 = np.asarray(V2, dtype=float)-self.V2Ref
         dV3 = np.asarray(V3, dtype=float)-self.V3Ref
-        ang = np.deg2rad(self.V3IdlYAng)
+        ang = np.deg2rad(self.V3IdlYAngle)
 
         XIdl = self.VIdlParity * (dV2 * np.cos(ang) - dV2 * np.sin(ang))
         YIdl =                    dV2 * np.sin(ang) + dV3 * np.cos(ang)
