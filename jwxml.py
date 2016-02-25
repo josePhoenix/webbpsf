@@ -359,7 +359,7 @@ class Aperture(object):
         dV3 = np.asarray(V3, dtype=float)-self.V3Ref
         ang = np.deg2rad(self.V3IdlYAngle)
 
-        XIdl = self.VIdlParity * (dV2 * np.cos(ang) - dV2 * np.sin(ang))
+        XIdl = self.VIdlParity * (dV2 * np.cos(ang) - dV3 * np.sin(ang))
         YIdl =                    dV2 * np.sin(ang) + dV3 * np.cos(ang)
         return XIdl, YIdl
 
