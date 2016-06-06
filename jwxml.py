@@ -629,7 +629,7 @@ class SIAF(object):
         elif self.instrument =='NIRISS':
             fullaps.append( self.apertures['NIS-CEN'])
         elif self.instrument =='MIRI':
-            fullaps.append( self.apertures['MIRIM_FULL_CNTR'])
+            fullaps.append( self.apertures['MIRIM_FULL'])
         elif self.instrument =='FGS':
             fullaps.append( self.apertures['FGS1_FULL'])
             fullaps.append( self.apertures['FGS2_FULL'])
@@ -737,10 +737,16 @@ def plotAllSIAFs(subarrays = True, showorigin=True, showchannels=True, **kwargs)
         if showchannels: aps.plotDetectorChannels()
 
 
-def plotMainSIAFs(showorigin=False, showchannels=False, label=False, **kwargs):
-    col_imaging = 'blue'
-    col_coron = 'green'
-    col_msa = 'magenta'
+def plotMainSIAFs(showorigin=False, showchannels=False, label=False, darkbg = False, **kwargs):
+
+    if darkbg:
+        col_imaging = 'aqua'
+        col_coron = 'lime'
+        col_msa = 'violet'
+    else:
+        col_imaging = 'blue'
+        col_coron = 'green'
+        col_msa = 'magenta'
 
     nircam = SIAF('NIRCam')
     niriss= SIAF('NIRISS')
@@ -748,8 +754,12 @@ def plotMainSIAFs(showorigin=False, showchannels=False, label=False, **kwargs):
     nirspec = SIAF('NIRSpec')
     miri = SIAF('MIRI')
 
-    im_aps = [ nircam['NRCA5_FULL'], nircam['NRCB5_FULL'], niriss['NIS-CEN'], miri['MIRIM_FULL_ILLCNTR'],
+    im_aps = [ niriss['NIS-CEN'], miri['MIRIM_ILLUM'],
             fgs['FGS1_FULL'], fgs['FGS2_FULL']]
+
+    for letter in ['A','B']:
+        for num in range(5):
+            im_aps.append(nircam['NRC{}{}_FULL'.format(letter,num+1)])
 
     coron_aps = [nircam['NRCA2_MASK210R'], nircam['NRCA4_MASKSWB'],
             nircam['NRCA5_MASK335R'],
@@ -760,11 +770,12 @@ def plotMainSIAFs(showorigin=False, showchannels=False, label=False, **kwargs):
             nircam['NRCB5_MASK335R'],
             nircam['NRCB5_MASK430R'],
             nircam['NRCB5_MASKLWB'],
-            miri['MIRIM_MASK1065_CNTR'],
-            miri['MIRIM_MASK1140_CNTR'],
-            miri['MIRIM_MASK1550_CNTR'],
-            miri['MIRIM_MASKLYOT_CNTR']]
+            miri['MIRIM_MASK1065'],
+            miri['MIRIM_MASK1140'],
+            miri['MIRIM_MASK1550'],
+            miri['MIRIM_MASKLYOT']]
     msa_aps = [nirspec['NRS_FULL_MSA'+str(n+1)] for n in range(4)]
+    msa_aps.append(nirspec['NRS_S1600A1_SLIT']) # square aperture
 
     for aplist, col in zip(  [im_aps, coron_aps, msa_aps], [col_imaging, col_coron, col_msa]):
         for ap in aplist:
