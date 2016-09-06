@@ -306,7 +306,7 @@ class Aperture(object):
         ax : matplotlib.Axes
             Desired destination axes to plot into (If None, current
             axes are inferred from pyplot.)
-        units : st
+        units : str
             one of 'arcsec', 'arcmin', 'deg'
         annotate : bool
             Add annotations for detector (0,0) pixels
