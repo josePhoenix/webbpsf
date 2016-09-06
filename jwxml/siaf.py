@@ -1,28 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-try:
-    from lxml import etree
-
-    def iterchildren(element, tag=None):
-        return element.iterchildren(tag)
-except ImportError:
-    import xml.etree.cElementTree as etree
-
-    # The ElementTree implementation in xml.etree does not support
-    # Element.iterchildren, so provide this wrapper instead
-    # This wrapper does not currently provide full support for all the arguments as
-    # lxml's iterchildren
-    def iterchildren(element, tag=None):
-        if tag is None:
-            return iter(element)
-
-        def _iterchildren():
-            for child in element:
-                if child.tag == tag:
-                    yield child
-
-        return _iterchildren()
+from .constants import PRD_DATA_ROOT
+from .utils import iterchildren, etree
 
 import logging
 import os
@@ -37,12 +17,9 @@ except ImportError:
 
 FRAMES = ('Det', 'Sci', 'Idl', 'Tel')
 
-PRD_VERSION = 'PRDDEVSOC-D-012'  # updated 2016-04-13
-DATA_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', PRD_VERSION)
-
-if not os.path.isdir(DATA_ROOT):
-    raise RuntimeError("Could not find SIAF data in {}".format(DATA_ROOT))
-
+if not os.path.isdir(PRD_DATA_ROOT):
+    raise RuntimeError("Could not find SIAF data "
+                       "in {}".format(PRD_DATA_ROOT))
 
 # ---------------------------------------------------------------------------------
 #  SIAF related classes
@@ -484,7 +461,7 @@ class SIAF(object):
 
         if filename is None:
             if basepath is None:
-                basepath = DATA_ROOT
+                basepath = PRD_DATA_ROOT
             self.filename = os.path.join(basepath, instr + '_SIAF.xml')
         else:
             self.filename = filename

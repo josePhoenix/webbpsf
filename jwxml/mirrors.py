@@ -1,22 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
-try:
-    from lxml import etree
-    HAVE_LXML = True
-except ImportError:
-    import xml.etree.cElementTree as etree
-    HAVE_LXML = False
+from .utils import iterchildren, etree
 
 import logging
-import unittest
-import os
 _log = logging.getLogger('jwxml')
 
-try:
-    import webbpsf
-    _HAS_WEBBPSF=True
-except ImportError:
-    _HAS_WEBBPSF=False
 
 #---------------------------------------------------------------------------------
 #   Mirror Move related classes

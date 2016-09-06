@@ -11,5 +11,6 @@ jwxml: Various Python classes for parsing JWST-related information in XML files
 
 from .mirrors import Segment_Update, SUR
 from .siaf import Aperture, SIAF
+from .constants import PRD_VERSION, PRD_DATA_ROOT
 
-__all__ = ['Segment_Update', 'SUR', 'Aperture', 'SIAF']
+__all__ = ['Segment_Update', 'SUR', 'Aperture', 'SIAF', 'PRD_DATA_ROOT', 'PRD_VERSION']
