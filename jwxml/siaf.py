@@ -1,11 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
+
 try:
     from lxml import etree
+
+
     def iterchildren(element, tag=None):
         element.iterchildren(tag)
 except ImportError:
     import xml.etree.cElementTree as etree
+
 
     # The ElementTree implementation in xml.etree does not support
     # Element.iterchildren, so provide this wrapper instead
@@ -25,6 +29,7 @@ except ImportError:
 import logging
 import unittest
 import os
+
 _log = logging.getLogger('jwxml')
 
 webbpsf = None
@@ -36,7 +41,8 @@ except ImportError:
 
 FRAMES = ('Det', 'Sci', 'Idl', 'Tel')
 
-#---------------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------------
 #  SIAF related classes
 
 class Aperture(object):
@@ -62,7 +68,9 @@ class Aperture(object):
     ap.Idl2Sci( 10, 3)                          # convert Idl coords to Sci pixels
                                                 # takes arcsec, returns pixels
 
-    # there exist functions for all of the possible {Tel,Idl,Sci,Det}2{Tel,Idl,Sci,Det} combinations.
+    # there exist functions for all of the possible
+    # {Tel,Idl,Sci,Det}2{Tel,Idl,Sci,Det} combinations.
+
     # you can also specify frames by string:
     ap.convert(1024, 512, frame_from='Det', frame_to='Tel')  # same as first example above
 
@@ -72,33 +80,35 @@ class Aperture(object):
 
     ap.plot('Idl', annotate=True, title=True)   # plot coordinates in Idl frame
     ap.plotDetectorChannels()                   # color in the readout channels
-
-
     """
+
     def __init__(self, xmlnode, instrument=None):
 
-        self.instrument=instrument
-        convfactors = {'RADIANS': 1, 'DEGREES': np.pi/180, 'ARCSECS': np.pi/180/60/60}
+        self.instrument = instrument
+        convfactors = {'RADIANS': 1, 'DEGREES': np.pi / 180, 'ARCSECS': np.pi / 180 / 60 / 60}
 
         for node in iterchildren(xmlnode):
-            tag = node.tag.replace('{http://www.stsci.edu/SIAF}','')
-            if len(node.getchildren()) ==0:
+            tag = node.tag.replace('{http://www.stsci.edu/SIAF}', '')
+            if len(node.getchildren()) == 0:
                 # if doens't have children,
                 try:
-                    value = float(node.text) # do we care about ints vs floats?
-                except (ValueError,TypeError):
-                    value=node.text
+                    value = float(node.text)  # do we care about ints vs floats?
+                except (ValueError, TypeError):
+                    value = node.text
                 self.__dict__[tag] = value
             else:
                 # if does have children:
                 if '{http://www.stsci.edu/SIAF}units' in [c.tag for c in node.getchildren()]:
-                    # this will be an angle/units pair. units are either in arcsec or degrees. Convert to radians in any case for internal use.
-                    unit  = node.find('{http://www.stsci.edu/SIAF}units').text
-                    value =float( node.find('{http://www.stsci.edu/SIAF}value').text) * convfactors[unit]
+                    # this will be an angle/units pair. units are either in arcsec or degrees.
+                    # Convert to radians in any case for internal use.
+                    unit = node.find('{http://www.stsci.edu/SIAF}units').text
+                    value = float(node.find('{http://www.stsci.edu/SIAF}value').text)
+                    value *= convfactors[unit]
                     self.__dict__[tag] = value
                 elif '{http://www.stsci.edu/SIAF}elt' in [c.tag for c in node.getchildren()]:
                     #  an array of values which should go to an NDarray
-                    elts = [float(c.text) for c in iterchildren(node, '{http://www.stsci.edu/SIAF}elt')]
+                    elts = [float(c.text) for c in
+                            iterchildren(node, '{http://www.stsci.edu/SIAF}elt')]
                     self.__dict__[tag] = np.asarray(elts)
 
                 else:
@@ -106,38 +116,48 @@ class Aperture(object):
 
         # pack things into NDarrays for convenient access
         # first the vertices
-        self.XIdlVert = np.asarray((self.XIdlVert1, self.XIdlVert2,self.XIdlVert3,self.XIdlVert4))
-        self.YIdlVert = np.asarray((self.YIdlVert1, self.YIdlVert2,self.YIdlVert3,self.YIdlVert4))
+        self.XIdlVert = np.asarray((self.XIdlVert1, self.XIdlVert2, self.XIdlVert3, self.XIdlVert4))
+        self.YIdlVert = np.asarray((self.YIdlVert1, self.YIdlVert2, self.YIdlVert3, self.YIdlVert4))
 
         # then the transformation coefficients
 
         if self.Sci2IdlDeg is not None:
             self.Sci2IdlDeg = int(self.Sci2IdlDeg)
-            self.Sci2IdlCoeffs_X = np.zeros( (self.Sci2IdlDeg+1, self.Sci2IdlDeg+1))
-            self.Sci2IdlCoeffs_Y = np.zeros( (self.Sci2IdlDeg+1, self.Sci2IdlDeg+1))
-            self.Idl2SciCoeffs_X = np.zeros( (self.Sci2IdlDeg+1, self.Sci2IdlDeg+1))
-            self.Idl2SciCoeffs_Y = np.zeros( (self.Sci2IdlDeg+1, self.Sci2IdlDeg+1))
-            for i in range(1,self.Sci2IdlDeg+1):
-                for j in range(0,i+1):
-                    #if self.AperName == 'FGS2_FULL_CNTR':
-                        #print('Sci2IdlX{0:1d}{1:1d}'.format(i,j), self.__dict__['Sci2IdlX{0:1d}{1:1d}'.format(i,j)])
-                    self.Sci2IdlCoeffs_X[i,j] = self.__dict__['Sci2IdlX{0:1d}{1:1d}'.format(i,j)]
-                    self.Sci2IdlCoeffs_Y[i,j] = self.__dict__['Sci2IdlY{0:1d}{1:1d}'.format(i,j)]
-                    self.Idl2SciCoeffs_X[i,j] = self.__dict__['Idl2SciX{0:1d}{1:1d}'.format(i,j)]
-                    self.Idl2SciCoeffs_Y[i,j] = self.__dict__['Idl2SciY{0:1d}{1:1d}'.format(i,j)]
+            self.Sci2IdlCoeffs_X = np.zeros((self.Sci2IdlDeg + 1, self.Sci2IdlDeg + 1))
+            self.Sci2IdlCoeffs_Y = np.zeros((self.Sci2IdlDeg + 1, self.Sci2IdlDeg + 1))
+            self.Idl2SciCoeffs_X = np.zeros((self.Sci2IdlDeg + 1, self.Sci2IdlDeg + 1))
+            self.Idl2SciCoeffs_Y = np.zeros((self.Sci2IdlDeg + 1, self.Sci2IdlDeg + 1))
+            for i in range(1, self.Sci2IdlDeg + 1):
+                for j in range(0, i + 1):
+                    # if self.AperName == 'FGS2_FULL_CNTR':
+                    # print('Sci2IdlX{0:1d}{1:1d}'.format(i,j), self.__dict__['Sci2IdlX{0:1d}{
+                    # 1:1d}'.format(i,j)])
+                    self.Sci2IdlCoeffs_X[i, j] = self.__dict__['Sci2IdlX{0:1d}{1:1d}'.format(i, j)]
+                    self.Sci2IdlCoeffs_Y[i, j] = self.__dict__['Sci2IdlY{0:1d}{1:1d}'.format(i, j)]
+                    self.Idl2SciCoeffs_X[i, j] = self.__dict__['Idl2SciX{0:1d}{1:1d}'.format(i, j)]
+                    self.Idl2SciCoeffs_Y[i, j] = self.__dict__['Idl2SciY{0:1d}{1:1d}'.format(i, j)]
 
     def __repr__(self):
         return "<jwxml.Aperture object AperName={0} >".format(self.AperName)
 
-
-    #--- the actual fundamental transformation code follows in these next routines:
+    # --- the actual fundamental transformation code follows in these next routines:
     def Det2Sci(self, XDet, YDet):
         """ Detector to Science, following Section 4.1 of JWST-STScI-001550"""
         XDet = np.asarray(XDet, dtype=float)
         YDet = np.asarray(YDet, dtype=float)
         ang = np.deg2rad(self.DetSciYAngle)
-        XSci = self.XSciRef + self.DetSciParity* ((XDet - self.XDetRef)* np.cos(ang) + (YDet-self.YDetRef) * np.sin(ang))
-        YSci = self.YSciRef -                     (XDet - self.XDetRef)* np.sin(ang) + (YDet-self.YDetRef) * np.cos(ang)
+        XSci = (
+            self.XSciRef +
+            self.DetSciParity * (
+                (XDet - self.XDetRef) * np.cos(ang) +
+                (YDet - self.YDetRef) * np.sin(ang)
+            )
+        )
+        YSci = (
+            self.YSciRef -
+            (XDet - self.XDetRef) * np.sin(ang) +
+            (YDet - self.YDetRef) * np.cos(ang)
+        )
         return XSci, YSci
 
     def Sci2Det(self, XSci, YSci):
@@ -146,8 +166,16 @@ class Aperture(object):
         YSci = np.asarray(YSci, dtype=float)
 
         ang = np.deg2rad(self.DetSciYAngle)
-        XDet = self.XDetRef + self.DetSciParity * (XSci - self.XSciRef ) * np.cos(ang) - (YSci - self.YSciRef ) * np.sin(ang)
-        YDet = self.YDetRef + self.DetSciParity * (XSci - self.XSciRef ) * np.sin(ang) + (YSci - self.YSciRef ) * np.cos(ang)
+        XDet = (
+            self.XDetRef +
+            self.DetSciParity * (XSci - self.XSciRef) * np.cos(ang) -
+            (YSci - self.YSciRef) * np.sin(ang)
+        )
+        YDet = (
+            self.YDetRef +
+            self.DetSciParity * (XSci - self.XSciRef) * np.sin(ang) +
+            (YSci - self.YSciRef) * np.cos(ang)
+        )
         return XDet, YDet
 
     def Sci2Idl(self, XSci, YSci):
@@ -157,19 +185,18 @@ class Aperture(object):
         dY = np.asarray(YSci, dtype=float) - self.YSciRef
 
         degree = self.Sci2IdlDeg
-        #CX = self.Sci2IdlCoefX
-        #CY = self.Sci2IdlCoefY
+        # CX = self.Sci2IdlCoefX
+        # CY = self.Sci2IdlCoefY
 
-        #XIdl = CX[0]*dX + CX[1]*dY + CX[2]*dX**2 + CX[3]*dX*dY + CX[4]*dY**2
-        #YIdl = CY[0]*dY + CY[1]*dY + CY[2]*dY**2 + CY[3]*dY*dY + CY[4]*dY**2
+        # XIdl = CX[0]*dX + CX[1]*dY + CX[2]*dX**2 + CX[3]*dX*dY + CX[4]*dY**2
+        # YIdl = CY[0]*dY + CY[1]*dY + CY[2]*dY**2 + CY[3]*dY*dY + CY[4]*dY**2
         XIdl = np.zeros_like(np.asarray(XSci), dtype=float)
         YIdl = np.zeros_like(np.asarray(YSci), dtype=float)
 
-        for i in range(1,degree+1):
-            for j in range(0,i+1):
-                XIdl += self.Sci2IdlCoeffs_X[i,j] * dX**(i-j) * dY**j
-                YIdl += self.Sci2IdlCoeffs_Y[i,j] * dX**(i-j) * dY**j
-
+        for i in range(1, degree + 1):
+            for j in range(0, i + 1):
+                XIdl += self.Sci2IdlCoeffs_X[i, j] * dX ** (i - j) * dY ** j
+                YIdl += self.Sci2IdlCoeffs_Y[i, j] * dX ** (i - j) * dY ** j
 
         return XIdl, YIdl
 
@@ -180,26 +207,24 @@ class Aperture(object):
         YIdl = np.asarray(YIdl, dtype=float)
 
         degree = self.Sci2IdlDeg
-        #dX = XIdl #Idl origin is by definition 0
-        #dY = YIdl #Idl origin is by definition 0
+        # dX = XIdl #Idl origin is by definition 0
+        # dY = YIdl #Idl origin is by definition 0
 
         XSci = np.zeros_like(np.asarray(XIdl), dtype=float)
         YSci = np.zeros_like(np.asarray(YIdl), dtype=float)
 
-        for i in range(1,degree+1):
-            for j in range(0,i+1):
-                XSci += self.Idl2SciCoeffs_X[i,j] * XIdl**(i-j) * YIdl**j
-                YSci += self.Idl2SciCoeffs_Y[i,j] * XIdl**(i-j) * YIdl**j
+        for i in range(1, degree + 1):
+            for j in range(0, i + 1):
+                XSci += self.Idl2SciCoeffs_X[i, j] * XIdl ** (i - j) * YIdl ** j
+                YSci += self.Idl2SciCoeffs_Y[i, j] * XIdl ** (i - j) * YIdl ** j
 
+        # CX = self.Idl2SciCoefX
+        # CY = self.Idl2SciCoefY
 
-
-        #CX = self.Idl2SciCoefX
-        #CY = self.Idl2SciCoefY
-
-        #XSci = CX[0]*dX + CX[1]*dY + CX[2]*dX**2 + CX[3]*dX*dY + CX[4]*dY**2
-        #YSci = CY[0]*dY + CY[1]*dY + CY[2]*dY**2 + CY[3]*dY*dY + CY[4]*dY**2
+        # XSci = CX[0]*dX + CX[1]*dY + CX[2]*dX**2 + CX[3]*dX*dY + CX[4]*dY**2
+        # YSci = CY[0]*dY + CY[1]*dY + CY[2]*dY**2 + CY[3]*dY*dY + CY[4]*dY**2
         return XSci + self.XSciRef, YSci + self.YSciRef
-        #return XSci, YSci
+        # return XSci, YSci
 
     def Idl2Tel(self, XIdl, YIdl):
         """ Convert Idl to  Tel
@@ -215,16 +240,16 @@ class Aperture(object):
         XIdl = np.asarray(XIdl, dtype=float)
         YIdl = np.asarray(YIdl, dtype=float)
 
-        #print(self.V2Ref, self.V3Ref)
-        #rad2arcsec = 1./(np.pi/180/60/60)
+        # print(self.V2Ref, self.V3Ref)
+        # rad2arcsec = 1./(np.pi/180/60/60)
 
-        #V2Ref and V3Ref are now in arcseconds in the XML file
+        # V2Ref and V3Ref are now in arcseconds in the XML file
         ang = np.deg2rad(self.V3IdlYAngle)
         V2 = self.V2Ref + self.VIdlParity * XIdl * np.cos(ang) + YIdl * np.sin(ang)
         V3 = self.V3Ref - self.VIdlParity * XIdl * np.sin(ang) + YIdl * np.cos(ang)
         return V2, V3
 
-    def Tel2Idl(self,V2, V3):
+    def Tel2Idl(self, V2, V3):
         """ Convert Tel to Idl
 
         input in arcsec, output in arcsec
@@ -240,31 +265,37 @@ class Aperture(object):
         point. See JWST-STScI-1550 for more details.
         """
 
-        #rad2arcsec = 1./(np.pi/180/60/60)
-        dV2 = np.asarray(V2, dtype=float)-self.V2Ref
-        dV3 = np.asarray(V3, dtype=float)-self.V3Ref
+        # rad2arcsec = 1./(np.pi/180/60/60)
+        dV2 = np.asarray(V2, dtype=float) - self.V2Ref
+        dV3 = np.asarray(V3, dtype=float) - self.V3Ref
         ang = np.deg2rad(self.V3IdlYAngle)
 
         XIdl = self.VIdlParity * (dV2 * np.cos(ang) - dV3 * np.sin(ang))
-        YIdl =                    dV2 * np.sin(ang) + dV3 * np.cos(ang)
+        YIdl = dV2 * np.sin(ang) + dV3 * np.cos(ang)
         return XIdl, YIdl
 
-    #--- and now some compound transformations that are less fundamental. This just nests calls to the above.
+    # --- and now some compound transformations that are less fundamental. This just nests calls
+    # to the above.
 
     def Det2Idl(self, *args):
         return self.Sci2Idl(*self.Det2Sci(*args))
+
     def Det2Tel(self, *args):
         return self.Idl2Tel(*self.Sci2Idl(*self.Det2Sci(*args)))
+
     def Sci2Tel(self, *args):
         return self.Idl2Tel(*self.Sci2Idl(*args))
+
     def Idl2Det(self, *args):
         return self.Sci2Det(*self.Idl2Sci(*args))
+
     def Tel2Sci(self, *args):
         return self.Idl2Sci(*self.Tel2Idl(*args))
+
     def Tel2Det(self, *args):
         return self.Sci2Det(*self.Idl2Sci(*self.Tel2Idl(*args)))
 
-    #--- now, functions other than direct coordinate transformations
+    # --- now, functions other than direct coordinate transformations
     def convert(self, X, Y, frame_from=None, frame_to=None):
         """ Generic conversion routine, that calls one of the
         specific conversion routines based on the provided frame names as strings. """
@@ -278,7 +309,7 @@ class Aperture(object):
         # With valid frame_from and frame_to, this method must exist:
         conversion_method = getattr(self, '{}2{}'.format(frame_from, frame_to))
 
-        return conversion_method(X,Y)
+        return conversion_method(X, Y)
 
     def corners(self, frame='Idl'):
         " Return coordinates of the aperture outline"
@@ -288,8 +319,8 @@ class Aperture(object):
         """ Return the defining center point of the aperture"""
         return self.convert(self.V2Ref, self.V3Ref, 'Tel', frame)
 
-
-    def plot(self, frame='Idl', label=True, ax=None, title=True, units='arcsec', annotate=False, color=None):
+    def plot(self, frame='Idl', label=True, ax=None, title=True, units='arcsec', annotate=False,
+             color=None):
         """ Plot this one aperture
 
         Parameters
@@ -312,37 +343,35 @@ class Aperture(object):
             passed through to `matplotlib.Axes.plot`
         """
         if units is None:
-            units='arcsec'
+            units = 'arcsec'
 
         # should we flip the X axis direction at the end of this function?
-        need_to_flip_axis = False # only flip if we created the axis
+        need_to_flip_axis = False  # only flip if we created the axis
         if ax is None:
             ax = plt.gca()
             ax.set_aspect('equal')
-            if frame=='Idl' or frame=='Tel':
-                need_to_flip_axis = True # *and* we're displaying some coordinates in angles relative to V2.
+            if frame == 'Idl' or frame == 'Tel':
+                need_to_flip_axis = True  # *and* we're displaying some coordinates in angles
+                # relative to V2.
                 ax.set_xlabel('V2 [{0}]'.format(units))
                 ax.set_ylabel('V3 [{0}]'.format(units))
 
-            elif frame=='Sci' or frame=='Det':
+            elif frame == 'Sci' or frame == 'Det':
                 ax.set_xlabel('X pixels [{0}]'.format(frame))
                 ax.set_ylabel('Y pixels [{0}]'.format(frame))
-
-
 
         x, y = self.corners(frame=frame)
 
         if units.lower() == 'arcsec':
-            scale=1
-        elif units.lower() =='arcmin':
-            scale=01./60
-        elif units.lower() =='deg':
-            scale=01./60/60
+            scale = 1
+        elif units.lower() == 'arcmin':
+            scale = 1. / 60
+        elif units.lower() == 'deg':
+            scale = 1. / 60 / 60
         else:
-            raise ValueError("Unknown units: "+units)
+            raise ValueError("Unknown units: " + units)
 
-
-        x2 = np.concatenate([x, [x[0]]]) # close the box
+        x2 = np.concatenate([x, [x[0]]])  # close the box
         y2 = np.concatenate([y, [y[0]]])
 
         # convert arcsec to arcmin and plot
@@ -352,15 +381,20 @@ class Aperture(object):
             ax.plot(x2 * scale, y2 * scale)
 
         if need_to_flip_axis:
-            #print("flipped x axis")
-            #ax.set_xlim(ax.get_xlim()[::-1])
+            # print("flipped x axis")
+            # ax.set_xlim(ax.get_xlim()[::-1])
             pass
 
         if label:
-            rotation = 30 if self.AperName.startswith('NRC') else 0 # partially mitigate overlapping NIRCam labels
-            ax.text(x.mean()*scale, y.mean()*scale, self.AperName,
-                verticalalignment='center', horizontalalignment='center', rotation=rotation,
-                color=ax.lines[-1].get_color())
+            # partially mitigate overlapping NIRCam labels
+            rotation = 30 if self.AperName.startswith('NRC') else 0
+            ax.text(
+                x.mean() * scale, y.mean() * scale, self.AperName,
+                verticalalignment='center',
+                horizontalalignment='center',
+                rotation=rotation,
+                color=ax.lines[-1].get_color()
+            )
         if title:
             ax.set_title("{0} frame".format(frame))
         if annotate:
@@ -379,13 +413,13 @@ class Aperture(object):
         """
 
         # raw detector frame
-        if which.lower() == 'det' or which.lower()=='both':
-            c1, c2 = self.convert( 0, 0, 'Det', frame)
+        if which.lower() == 'det' or which.lower() == 'both':
+            c1, c2 = self.convert(0, 0, 'Det', frame)
             plt.plot(c1, c2, color='red', marker='s', markersize=9)
 
         # science frame
-        if which.lower() == 'sci' or which.lower()=='both':
-            c1, c2 = self.convert( 0, 0, 'Sci', frame)
+        if which.lower() == 'sci' or which.lower() == 'both':
+            c1, c2 = self.convert(0, 0, 'Sci', frame)
             plt.plot(c1, c2, color='blue', marker='s')
 
     def plotDetectorChannels(self, frame='Idl', color='0.5', alpha=0.3, evenoddratio=0.5):
@@ -410,19 +444,27 @@ class Aperture(object):
        """
 
         import matplotlib
-        if self.instrument == 'MIRI': npixels = 1024
-        else: npixels = 2048
-        ch = npixels/4
+        if self.instrument == 'MIRI':
+            npixels = 1024
+        else:
+            npixels = 2048
+        ch = npixels / 4
 
         ax = plt.gca()
-        pts = ((0, 0), (ch,0), (ch,npixels), (0, npixels))
+        pts = ((0, 0), (ch, 0), (ch, npixels), (0, npixels))
         for chan in range(4):
-            plotpoints = np.zeros((4,2))
-            for i,xy in enumerate(pts):
-                plotpoints[i] = self.convert(xy[0]+chan*ch,xy[1],'Det',frame)
-            rect = matplotlib.patches.Polygon(plotpoints, closed=True,
-                    alpha=(alpha if np.mod(chan,2) else alpha*evenoddratio),
-                    facecolor=color, edgecolor='none', lw=0)
+            plotpoints = np.zeros((4, 2))
+            for i, xy in enumerate(pts):
+                plotpoints[i] = self.convert(xy[0] + chan * ch, xy[1], 'Det', frame)
+            chan_alpha = alpha if chan % 2 == 1 else alpha * evenoddratio
+            rect = matplotlib.patches.Polygon(
+                plotpoints,
+                closed=True,
+                alpha=chan_alpha,
+                facecolor=color,
+                edgecolor='none',
+                lw=0
+            )
             ax.add_patch(rect)
 
 
@@ -449,8 +491,9 @@ class SIAF(object):
     fgs_siaf.plot()                   # plot all apertures in this file
 
     """
+
     def __init__(self, instr='NIRISS', filename=None, basepath=None, **kwargs):
-            #basepath="/Users/mperrin/Dropbox/JWST/Optics Documents/SIAF/"
+        # basepath="/Users/mperrin/Dropbox/JWST/Optics Documents/SIAF/"
         """ Read a SIAF from disk
 
         Parameters
@@ -463,13 +506,11 @@ class SIAF(object):
             Alternative method to specify a specific SIAF XML file.
         """
 
-
-
         if instr not in ['NIRCam', 'NIRSpec', 'NIRISS', 'MIRI', 'FGS']:
-            raise ValueError("Invalid instrument name: {0}. Note that this is case sensitive.".format(instr))
+            raise ValueError(
+                "Invalid instrument name: {0}. Note that this is case sensitive.".format(instr))
 
-        self.instrument=instr
-
+        self.instrument = instr
 
         if filename is None:
             if basepath is None:
@@ -477,9 +518,9 @@ class SIAF(object):
                     from webbpsf.utils import get_webbpsf_data_path
                     basepath = os.path.join(get_webbpsf_data_path(), instr)
                 else:
-                    basepath='.'
+                    basepath = '.'
 
-            self.filename=os.path.join(basepath, instr+'_SIAF.xml')
+            self.filename = os.path.join(basepath, instr + '_SIAF.xml')
         else:
             self.filename = filename
 
@@ -487,11 +528,9 @@ class SIAF(object):
 
         self._tree = etree.parse(self.filename)
 
-        self._last_plot_frame=None
+        self._last_plot_frame = None
 
-
-
-        #for entry in self._tree.getroot().iter('{http://www.stsci.edu/SIAF}SiafEntry'):
+        # for entry in self._tree.getroot().iter('{http://www.stsci.edu/SIAF}SiafEntry'):
         for entry in self._tree.getroot().iter('SiafEntry'):
             aperture = Aperture(entry, instrument=self.instrument)
             self.apertures[aperture.AperName] = aperture
@@ -507,36 +546,35 @@ class SIAF(object):
         """ List of aperture names defined in this SIAF"""
         return self.apertures.keys()
 
-
     def _getFullApertures(self):
         """ Return whichever subset of apertures correspond to the entire detectors. This is a
         helper function for the various plotting routines following"""
         fullaps = []
-        if self.instrument =='NIRCam':
-            fullaps.append( self.apertures['NRCA5_FULL'])
-            fullaps.append( self.apertures['NRCB5_FULL'])
-            #for letter in ['A', 'B']:
-                #for number in range(1,6):
-                    #fullaps.append(self.apertures['NRC{letter}{number}_FULL_CNTR'.format(letter=letter, number=number)])
-        elif self.instrument =='NIRSpec':
-            #fullaps.append( self.apertures['NRS1_FULL'])
-            #fullaps.append( self.apertures['NRS2_FULL'])
-            fullaps.append( self.apertures['NRS_FULL_MSA1'])
-            fullaps.append( self.apertures['NRS_FULL_MSA2'])
-            fullaps.append( self.apertures['NRS_FULL_MSA3'])
-            fullaps.append( self.apertures['NRS_FULL_MSA4'])
-        elif self.instrument =='NIRISS':
-            fullaps.append( self.apertures['NIS-CEN'])
-        elif self.instrument =='MIRI':
-            fullaps.append( self.apertures['MIRIM_FULL_CNTR'])
-        elif self.instrument =='FGS':
-            fullaps.append( self.apertures['FGS1_FULL'])
-            fullaps.append( self.apertures['FGS2_FULL'])
+        if self.instrument == 'NIRCam':
+            fullaps.append(self.apertures['NRCA5_FULL'])
+            fullaps.append(self.apertures['NRCB5_FULL'])
+            # for letter in ['A', 'B']:
+            # for number in range(1,6):
+            # fullaps.append(self.apertures['NRC{letter}{number}_FULL_CNTR'.format(letter=letter,
+            #  number=number)])
+        elif self.instrument == 'NIRSpec':
+            # fullaps.append( self.apertures['NRS1_FULL'])
+            # fullaps.append( self.apertures['NRS2_FULL'])
+            fullaps.append(self.apertures['NRS_FULL_MSA1'])
+            fullaps.append(self.apertures['NRS_FULL_MSA2'])
+            fullaps.append(self.apertures['NRS_FULL_MSA3'])
+            fullaps.append(self.apertures['NRS_FULL_MSA4'])
+        elif self.instrument == 'NIRISS':
+            fullaps.append(self.apertures['NIS-CEN'])
+        elif self.instrument == 'MIRI':
+            fullaps.append(self.apertures['MIRIM_FULL_CNTR'])
+        elif self.instrument == 'FGS':
+            fullaps.append(self.apertures['FGS1_FULL'])
+            fullaps.append(self.apertures['FGS2_FULL'])
         return fullaps
 
-
     def plot(self, frame='Tel', names=None, label=True, units=None, clear=True, annotate=False,
-        subarrays=True):
+             subarrays=True):
         """ Plot all apertures in this SIAF
 
         Parameters
@@ -576,11 +614,9 @@ class SIAF(object):
         ax.set_xlabel('V2 [arcsec]')
         ax.set_ylabel('V3 [arcsec]')
 
-
-
-        if frame =='Tel' or frame=='Idl':
+        if frame == 'Tel' or frame == 'Idl':
             # enforce V2 increasing toward the left
-            ax.autoscale_view(True,True,True)
+            ax.autoscale_view(True, True, True)
             xlim = ax.get_xlim()
             if xlim[1] > xlim[0]: ax.set_xlim(xlim[::-1])
             ax.set_autoscalex_on(True)
@@ -604,7 +640,6 @@ class SIAF(object):
         for ap in self._getFullApertures():
             ap.plotDetectorOrigin(frame=frame, which=which)
 
-
     def plotDetectorChannels(self, frame=None):
         """ Mark on the plot the various detector readout channels
 
@@ -624,11 +659,11 @@ class SIAF(object):
             ap.plotDetectorChannels(frame=frame)
 
 
-def plotAllSIAFs(subarrays = True, showorigin=True, showchannels=True, **kwargs):
+def plotAllSIAFs(subarrays=True, showorigin=True, showchannels=True, **kwargs):
     """ Plot All instrument """
 
-    for instr in ['NIRCam','NIRISS','NIRSpec','FGS','MIRI']:
-        aps =SIAF(instr, **kwargs)
+    for instr in ['NIRCam', 'NIRISS', 'NIRSpec', 'FGS', 'MIRI']:
+        aps = SIAF(instr, **kwargs)
         print("{0} has {1} apertures".format(aps.instrument, len(aps)))
 
         aps.plot(clear=False, subarrays=subarrays, **kwargs)
@@ -642,46 +677,53 @@ def plotMainSIAFs(showorigin=False, showchannels=False, label=False, **kwargs):
     col_msa = 'magenta'
 
     nircam = SIAF('NIRCam')
-    niriss= SIAF('NIRISS')
+    niriss = SIAF('NIRISS')
     fgs = SIAF('FGS')
     nirspec = SIAF('NIRSpec')
     miri = SIAF('MIRI')
 
-    im_aps = [ nircam['NRCA5_FULL'], nircam['NRCB5_FULL'], niriss['NIS-CEN'], miri['MIRIM_FULL_ILLCNTR'],
-            fgs['FGS1_FULL'], fgs['FGS2_FULL']]
+    im_aps = [
+        nircam['NRCA5_FULL'],
+        nircam['NRCB5_FULL'],
+        niriss['NIS-CEN'],
+        miri['MIRIM_FULL_ILLCNTR'],
+        fgs['FGS1_FULL'],
+        fgs['FGS2_FULL']
+    ]
 
-    coron_aps = [nircam['NRCA2_MASK210R'], nircam['NRCA4_MASKSWB'],
-            nircam['NRCA5_MASK335R'],
-            nircam['NRCA5_MASK430R'],
-            nircam['NRCA5_MASKLWB'],
-            nircam['NRCB3_MASKSWB'],
-            nircam['NRCB1_MASK210R'],
-            nircam['NRCB5_MASK335R'],
-            nircam['NRCB5_MASK430R'],
-            nircam['NRCB5_MASKLWB'],
-            miri['MIRIM_MASK1065_CNTR'],
-            miri['MIRIM_MASK1140_CNTR'],
-            miri['MIRIM_MASK1550_CNTR'],
-            miri['MIRIM_MASKLYOT_CNTR']]
-    msa_aps = [nirspec['NRS_FULL_MSA'+str(n+1)] for n in range(4)]
+    coron_aps = [
+        nircam['NRCA2_MASK210R'],
+        nircam['NRCA4_MASKSWB'],
+        nircam['NRCA5_MASK335R'],
+        nircam['NRCA5_MASK430R'],
+        nircam['NRCA5_MASKLWB'],
+        nircam['NRCB3_MASKSWB'],
+        nircam['NRCB1_MASK210R'],
+        nircam['NRCB5_MASK335R'],
+        nircam['NRCB5_MASK430R'],
+        nircam['NRCB5_MASKLWB'],
+        miri['MIRIM_MASK1065_CNTR'],
+        miri['MIRIM_MASK1140_CNTR'],
+        miri['MIRIM_MASK1550_CNTR'],
+        miri['MIRIM_MASKLYOT_CNTR']
+    ]
+    msa_aps = [nirspec['NRS_FULL_MSA' + str(n + 1)] for n in range(4)]
 
-    for aplist, col in zip(  [im_aps, coron_aps, msa_aps], [col_imaging, col_coron, col_msa]):
+    for aplist, col in zip([im_aps, coron_aps, msa_aps], [col_imaging, col_coron, col_msa]):
         for ap in aplist:
             ap.plot(color=col, frame='Tel', label=label, **kwargs)
 
-
     # ensure V2 increases to the left
-            #ax.set_xlim(
     ax = plt.gca()
     xlim = ax.get_xlim()
     if xlim[0] < xlim[1]:
         ax.set_xlim(xlim[::-1])
-class Test_SIAF(unittest.TestCase):
 
+
+class Test_SIAF(unittest.TestCase):
     def assertAlmostEqualTwo(self, tuple1, tuple2):
         self.assertAlmostEqual(tuple1[0], tuple2[0], places=1)
         self.assertAlmostEqual(tuple1[1], tuple2[1], places=1)
-
 
     def _test_up(self):
         siaf = SIAF("JwstSiaf-2010-10-05.xml")
@@ -690,12 +732,12 @@ class Test_SIAF(unittest.TestCase):
 
         nca = siaf['NIRCAM A']
 
-        self.assertAlmostEqualTwo( nca.Det2Sci(startx,starty), (1020.,1020.))
+        self.assertAlmostEqualTwo(nca.Det2Sci(startx, starty), (1020., 1020.))
         print("Det2Sci OK")
 
-        self.assertAlmostEqualTwo( nca.Det2Idl(startx,starty), (0.0, 0.0))
+        self.assertAlmostEqualTwo(nca.Det2Idl(startx, starty), (0.0, 0.0))
         print("Det2Idl OK")
-        self.assertAlmostEqualTwo( nca.Det2Tel(startx,starty), (87.50, -497.10))
+        self.assertAlmostEqualTwo(nca.Det2Tel(startx, starty), (87.50, -497.10))
         print("Det2Tel OK")
 
     def _test_down(self):
@@ -704,28 +746,28 @@ class Test_SIAF(unittest.TestCase):
         startV3 = -497.10
         nca = siaf['NIRCAM A']
 
-        self.assertAlmostEqualTwo( nca.Sci2Det(1020., 1020), (1023.,1024.))
+        self.assertAlmostEqualTwo(nca.Sci2Det(1020., 1020), (1023., 1024.))
         print("Sci2Det OK")
 
-        self.assertAlmostEqualTwo( nca.Tel2Idl(startV2, startV3), (0.0, 0.0))
+        self.assertAlmostEqualTwo(nca.Tel2Idl(startV2, startV3), (0.0, 0.0))
         print("Tel2Idl OK")
-        self.assertAlmostEqualTwo( nca.Tel2Sci(startV2, startV3), (1020., 1020.))
+        self.assertAlmostEqualTwo(nca.Tel2Sci(startV2, startV3), (1020., 1020.))
         print("Tel2Sci OK")
-        self.assertAlmostEqualTwo( nca.Tel2Det(startV2, startV3), (1023.,1024.))
+        self.assertAlmostEqualTwo(nca.Tel2Det(startV2, startV3), (1023., 1024.))
         print("Tel2Det OK")
 
     def test_inverses(self):
         siaf = SIAF("JwstSiaf-2010-10-05.xml")
         nca = siaf['NIRCAM A']
 
-        self.assertAlmostEqualTwo( nca.Det2Sci(*nca.Sci2Det(1020., 1020)), (1020., 1020) )
-        self.assertAlmostEqualTwo( nca.Sci2Det(*nca.Det2Sci(1020., 1020)), (1020., 1020) )
+        self.assertAlmostEqualTwo(nca.Det2Sci(*nca.Sci2Det(1020., 1020)), (1020., 1020))
+        self.assertAlmostEqualTwo(nca.Sci2Det(*nca.Det2Sci(1020., 1020)), (1020., 1020))
         print("Det <-> Sci OK")
 
-        self.assertAlmostEqualTwo( nca.Tel2Idl(*nca.Idl2Tel(10., 10)), (10., 10) )
-        self.assertAlmostEqualTwo( nca.Idl2Tel(*nca.Tel2Idl(10., 10)), (10., 10) )
+        self.assertAlmostEqualTwo(nca.Tel2Idl(*nca.Idl2Tel(10., 10)), (10., 10))
+        self.assertAlmostEqualTwo(nca.Idl2Tel(*nca.Tel2Idl(10., 10)), (10., 10))
         print("Tel <-> Idl OK")
 
-        self.assertAlmostEqualTwo( nca.Tel2Sci(*nca.Sci2Tel(10., 10)), (10., 10) )
-        self.assertAlmostEqualTwo( nca.Sci2Tel(*nca.Tel2Sci(10., 10)), (10., 10) )
+        self.assertAlmostEqualTwo(nca.Tel2Sci(*nca.Sci2Tel(10., 10)), (10., 10))
+        self.assertAlmostEqualTwo(nca.Sci2Tel(*nca.Tel2Sci(10., 10)), (10., 10))
         print("Tel <-> Sci OK")
