@@ -4,12 +4,10 @@ import matplotlib.pyplot as plt
 try:
     from lxml import etree
 
-
     def iterchildren(element, tag=None):
         element.iterchildren(tag)
 except ImportError:
     import xml.etree.cElementTree as etree
-
 
     # The ElementTree implementation in xml.etree does not support
     # Element.iterchildren, so provide this wrapper instead
@@ -32,12 +30,10 @@ import os
 
 _log = logging.getLogger('jwxml')
 
-webbpsf = None
-
 try:
-    import webbpsf
+    from webbpsf import utils
 except ImportError:
-    webbpsf = None
+    utils = None
 
 FRAMES = ('Det', 'Sci', 'Idl', 'Tel')
 
@@ -120,7 +116,6 @@ class Aperture(object):
         self.YIdlVert = np.asarray((self.YIdlVert1, self.YIdlVert2, self.YIdlVert3, self.YIdlVert4))
 
         # then the transformation coefficients
-
         if self.Sci2IdlDeg is not None:
             self.Sci2IdlDeg = int(self.Sci2IdlDeg)
             self.Sci2IdlCoeffs_X = np.zeros((self.Sci2IdlDeg + 1, self.Sci2IdlDeg + 1))
@@ -129,9 +124,6 @@ class Aperture(object):
             self.Idl2SciCoeffs_Y = np.zeros((self.Sci2IdlDeg + 1, self.Sci2IdlDeg + 1))
             for i in range(1, self.Sci2IdlDeg + 1):
                 for j in range(0, i + 1):
-                    # if self.AperName == 'FGS2_FULL_CNTR':
-                    # print('Sci2IdlX{0:1d}{1:1d}'.format(i,j), self.__dict__['Sci2IdlX{0:1d}{
-                    # 1:1d}'.format(i,j)])
                     self.Sci2IdlCoeffs_X[i, j] = self.__dict__['Sci2IdlX{0:1d}{1:1d}'.format(i, j)]
                     self.Sci2IdlCoeffs_Y[i, j] = self.__dict__['Sci2IdlY{0:1d}{1:1d}'.format(i, j)]
                     self.Idl2SciCoeffs_X[i, j] = self.__dict__['Idl2SciX{0:1d}{1:1d}'.format(i, j)]
@@ -185,11 +177,6 @@ class Aperture(object):
         dY = np.asarray(YSci, dtype=float) - self.YSciRef
 
         degree = self.Sci2IdlDeg
-        # CX = self.Sci2IdlCoefX
-        # CY = self.Sci2IdlCoefY
-
-        # XIdl = CX[0]*dX + CX[1]*dY + CX[2]*dX**2 + CX[3]*dX*dY + CX[4]*dY**2
-        # YIdl = CY[0]*dY + CY[1]*dY + CY[2]*dY**2 + CY[3]*dY*dY + CY[4]*dY**2
         XIdl = np.zeros_like(np.asarray(XSci), dtype=float)
         YIdl = np.zeros_like(np.asarray(YSci), dtype=float)
 
@@ -207,9 +194,6 @@ class Aperture(object):
         YIdl = np.asarray(YIdl, dtype=float)
 
         degree = self.Sci2IdlDeg
-        # dX = XIdl #Idl origin is by definition 0
-        # dY = YIdl #Idl origin is by definition 0
-
         XSci = np.zeros_like(np.asarray(XIdl), dtype=float)
         YSci = np.zeros_like(np.asarray(YIdl), dtype=float)
 
@@ -218,13 +202,7 @@ class Aperture(object):
                 XSci += self.Idl2SciCoeffs_X[i, j] * XIdl ** (i - j) * YIdl ** j
                 YSci += self.Idl2SciCoeffs_Y[i, j] * XIdl ** (i - j) * YIdl ** j
 
-        # CX = self.Idl2SciCoefX
-        # CY = self.Idl2SciCoefY
-
-        # XSci = CX[0]*dX + CX[1]*dY + CX[2]*dX**2 + CX[3]*dX*dY + CX[4]*dY**2
-        # YSci = CY[0]*dY + CY[1]*dY + CY[2]*dY**2 + CY[3]*dY*dY + CY[4]*dY**2
         return XSci + self.XSciRef, YSci + self.YSciRef
-        # return XSci, YSci
 
     def Idl2Tel(self, XIdl, YIdl):
         """ Convert Idl to  Tel
@@ -239,9 +217,6 @@ class Aperture(object):
         """
         XIdl = np.asarray(XIdl, dtype=float)
         YIdl = np.asarray(YIdl, dtype=float)
-
-        # print(self.V2Ref, self.V3Ref)
-        # rad2arcsec = 1./(np.pi/180/60/60)
 
         # V2Ref and V3Ref are now in arcseconds in the XML file
         ang = np.deg2rad(self.V3IdlYAngle)
@@ -265,7 +240,6 @@ class Aperture(object):
         point. See JWST-STScI-1550 for more details.
         """
 
-        # rad2arcsec = 1./(np.pi/180/60/60)
         dV2 = np.asarray(V2, dtype=float) - self.V2Ref
         dV3 = np.asarray(V3, dtype=float) - self.V3Ref
         ang = np.deg2rad(self.V3IdlYAngle)
@@ -312,7 +286,7 @@ class Aperture(object):
         return conversion_method(X, Y)
 
     def corners(self, frame='Idl'):
-        " Return coordinates of the aperture outline"
+        """ Return coordinates of the aperture outline"""
         return self.convert(self.XIdlVert, self.YIdlVert, 'Idl', frame)
 
     def center(self, frame='Tel'):
@@ -345,14 +319,10 @@ class Aperture(object):
         if units is None:
             units = 'arcsec'
 
-        # should we flip the X axis direction at the end of this function?
-        need_to_flip_axis = False  # only flip if we created the axis
         if ax is None:
             ax = plt.gca()
             ax.set_aspect('equal')
             if frame == 'Idl' or frame == 'Tel':
-                need_to_flip_axis = True  # *and* we're displaying some coordinates in angles
-                # relative to V2.
                 ax.set_xlabel('V2 [{0}]'.format(units))
                 ax.set_ylabel('V3 [{0}]'.format(units))
 
@@ -379,11 +349,6 @@ class Aperture(object):
             ax.plot(x2 * scale, y2 * scale, color=color)
         else:
             ax.plot(x2 * scale, y2 * scale)
-
-        if need_to_flip_axis:
-            # print("flipped x axis")
-            # ax.set_xlim(ax.get_xlim()[::-1])
-            pass
 
         if label:
             # partially mitigate overlapping NIRCam labels
@@ -492,8 +457,7 @@ class SIAF(object):
 
     """
 
-    def __init__(self, instr='NIRISS', filename=None, basepath=None, **kwargs):
-        # basepath="/Users/mperrin/Dropbox/JWST/Optics Documents/SIAF/"
+    def __init__(self, instr='NIRISS', filename=None, basepath=None):
         """ Read a SIAF from disk
 
         Parameters
@@ -514,9 +478,8 @@ class SIAF(object):
 
         if filename is None:
             if basepath is None:
-                if webbpsf is not None:
-                    from webbpsf.utils import get_webbpsf_data_path
-                    basepath = os.path.join(get_webbpsf_data_path(), instr)
+                if utils is not None:
+                    basepath = os.path.join(utils.get_webbpsf_data_path(), instr)
                 else:
                     basepath = '.'
 
@@ -530,7 +493,6 @@ class SIAF(object):
 
         self._last_plot_frame = None
 
-        # for entry in self._tree.getroot().iter('{http://www.stsci.edu/SIAF}SiafEntry'):
         for entry in self._tree.getroot().iter('SiafEntry'):
             aperture = Aperture(entry, instrument=self.instrument)
             self.apertures[aperture.AperName] = aperture
@@ -553,13 +515,7 @@ class SIAF(object):
         if self.instrument == 'NIRCam':
             fullaps.append(self.apertures['NRCA5_FULL'])
             fullaps.append(self.apertures['NRCB5_FULL'])
-            # for letter in ['A', 'B']:
-            # for number in range(1,6):
-            # fullaps.append(self.apertures['NRC{letter}{number}_FULL_CNTR'.format(letter=letter,
-            #  number=number)])
         elif self.instrument == 'NIRSpec':
-            # fullaps.append( self.apertures['NRS1_FULL'])
-            # fullaps.append( self.apertures['NRS2_FULL'])
             fullaps.append(self.apertures['NRS_FULL_MSA1'])
             fullaps.append(self.apertures['NRS_FULL_MSA2'])
             fullaps.append(self.apertures['NRS_FULL_MSA3'])
