@@ -729,23 +729,3 @@ class Test_SIAF(unittest.TestCase):
         self.assertAlmostEqualTwo( nca.Tel2Sci(*nca.Sci2Tel(10., 10)), (10., 10) )
         self.assertAlmostEqualTwo( nca.Sci2Tel(*nca.Tel2Sci(10., 10)), (10., 10) )
         print("Tel <-> Sci OK")
-
-
-# The ElementTree implementation in xml.etree does not support
-# Element.iterchildren, so provide this wrapper instead
-# This wrapper does not currently provide full support for all the arguments as
-# lxml's iterchildren
-def iterchildren(element, tag=None):
-    if HAVE_LXML:
-        return element.iterchildren(tag)
-    else:
-
-        if tag is None:
-            return iter(element)
-
-        def _iterchildren():
-            for child in element:
-               if child.tag == tag:
-                   yield child
-
-        return _iterchildren()
