@@ -25,8 +25,8 @@ except ImportError:
         return _iterchildren()
 
 import logging
-import unittest
 import os
+import os.path
 
 _log = logging.getLogger('jwxml')
 
@@ -36,6 +36,12 @@ except ImportError:
     utils = None
 
 FRAMES = ('Det', 'Sci', 'Idl', 'Tel')
+
+PRD_VERSION = 'PRDDEVSOC-D-012'  # updated 2016-04-13
+DATA_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', PRD_VERSION)
+
+if not os.path.isdir(DATA_ROOT):
+    raise RuntimeError("Could not find SIAF data in {}".format(DATA_ROOT))
 
 
 # ---------------------------------------------------------------------------------
@@ -478,11 +484,7 @@ class SIAF(object):
 
         if filename is None:
             if basepath is None:
-                if utils is not None:
-                    basepath = os.path.join(utils.get_webbpsf_data_path(), instr)
-                else:
-                    basepath = '.'
-
+                basepath = DATA_ROOT
             self.filename = os.path.join(basepath, instr + '_SIAF.xml')
         else:
             self.filename = filename
