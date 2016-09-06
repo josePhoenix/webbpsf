@@ -5,7 +5,7 @@ try:
     from lxml import etree
 
     def iterchildren(element, tag=None):
-        element.iterchildren(tag)
+        return element.iterchildren(tag)
 except ImportError:
     import xml.etree.cElementTree as etree
 
