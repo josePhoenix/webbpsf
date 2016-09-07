@@ -253,7 +253,7 @@ class Aperture(object):
         return self.Sci2Det(*self.Idl2Sci(*self.Tel2Idl(*args)))
 
     # --- now, functions other than direct coordinate transformations
-    def convert(self, X, Y, frame_from=None, frame_to=None):
+    def convert(self, X, Y, frame_from, frame_to):
         """ Generic conversion routine, that calls one of the
         specific conversion routines based on the provided frame names as strings. """
 
