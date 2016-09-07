@@ -11,6 +11,29 @@ Prerequisites
  * Do you have access to WebbPSF on PyPI with the owner or maintainer role?
  * Do you have your ``~/.pypirc`` filled out? (`more info <https://python-packaging-user-guide.readthedocs.org/en/latest/distributing.html#register-your-project>`_)
 
+Upgrading the ``jwxml`` subtree
+===============================
+
+If you don't already have ``jwxml`` as a remote (see ``git remote -v``), add it::
+
+   $ git remote add --fetch jwxml git@github.com:josePhoenix/jwxml.git
+
+For subsequent updates, just use ``git pull`` to fetch and merge changes from the ``jwxml`` repo.
+
+   $ git pull -s subtree jwxml master
+   From github.com:josePhoenix/jwxml
+    * branch            master     -> FETCH_HEAD
+   Already up-to-date.
+
+.. note::
+
+   The ``jwxml`` subtree was added following `these instructions <https://help.github.com/articles/about-git-subtree-merges/>`_. When all was said and done, it looked something like this::
+
+   git remote add --fetch jwxml git@github.com:josePhoenix/jwxml.git
+   git merge -s ours --no-commit jwxml/make-nice-subtree
+   git read-tree --prefix=webbpsf/jwxml/ -u jwxml/make-nice-subtree
+   git commit -m "Converted webbpsf/jwxml/ to git-subtree reference to git@github.com:josePhoenix/jwxml.git"
+
 Releasing new data packages
 ===========================
 
