@@ -323,5 +323,51 @@ class WFI(WFIRSTInstrument):
             pass
         super(WFI, self)._validateConfig(**kwargs)
 
+class WFIRSTIntegralFieldUnit(WFIRSTInstrument):
+    name = "IFC"
+    def __init__(self):
+        super(WFIRSTIntegralFieldUnit, self).__init__(self.name, pixelscale=self.pixelscale)
+        self.pupil = os.path.join(self._WebbPSF_basepath, 'ifc_pupil_masked_rev_mcr.fits')
+        self.opd_list = [
+            os.path.join(self._WebbPSF_basepath, 'upscaled_HST_OPD.fits'),
+        ]
+        self.pupilopd = self.opd_list[-1]
 
+    def _get_aberrations(self):
+        return None
+    @property
+    def detector_position(self):
+        return 0., 0.
+
+class SmallIFU(WFIRSTIntegralFieldUnit):
+    """
+    The smaller of the two IFUs in the IFC of the WFIRST WFI,
+    covering a 3 arcsec by 3.15 (= 21 * 0.15) arcsec field of view
+
+    (WFIRST-AFTA SDT report final version, p. 98)
+    """
+
+    pixelscale = 0.075 # arcsec / px
+    """
+    The pixel scale at the focal plane is 0.075 arcsec for the
+    smaller field and 0.15 arcsec for the larger field.
+
+    (WFIRST-AFTA SDT report final version, p. 98)
+    """
+
+class LargeIFU(WFIRSTIntegralFieldUnit):
+    """
+    The larger of the two IFUs in the IFC of the WFIRST WFI,
+    covering a 6 arcsec by 6.3 (= 21 * 0.3) arcsec field of view
+
+    (WFIRST-AFTA SDT report final version, p. 98)
+    """
+
+    pixelscale = 0.15 # arcsec / px
+    """
+    The pixel scale at the focal plane is 0.075 arcsec for the
+    smaller field and 0.15 arcsec for the larger field.
+
+    (WFIRST-AFTA SDT report final version, p. 98)
+    """
 
