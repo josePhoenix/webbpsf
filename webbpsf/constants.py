@@ -9,6 +9,8 @@ from __future__ import division, print_function, absolute_import, unicode_litera
 # flags.writeable = False
 
 import numpy as np
+from matplotlib.path import Path
+import astropy.units as u
 
 __all__ = (
     'JWST_PRIMARY_SEGMENTS',
@@ -228,3 +230,185 @@ JWST_PRIMARY_SEGMENT_CENTERS = (
 
 JWST_SEGMENT_RADIUS = 1.517 / 2
 JWST_CIRCUMSCRIBED_DIAMETER = 6.603464  # meters
+
+#
+# NIRISS GR700XD grism mask shape
+#
+# Provenance:
+#
+# COM DEV drawing #206726
+# "GR700 (ZNSE) MASK RETAINER, ROTATED 270 DEG LLNL"
+# provided by Loic Albert (UdeM) 2016-11-04
+# vector path extracted from PDF and converted to SVG / matplotlib by Joseph Long (STScI)
+# (see "Convert GR700XD SVG Path to Matplotlib Path.ipynb" in webbpsf-data-source)
+
+NIRISS_GR700XD_MASK_VERTS = np.array([
+    [27.54, 38.23],
+    [31.43, 33.47],
+    [33.32, 32.78],
+    [35.09, 31.93],
+    [35.09, 31.93],
+    [35.30703524, 31.83691315],
+    [35.52293902, 31.74123131],
+    [35.73768032, 31.64296822],
+    [35.95122826, 31.54213801],
+    [36.16355218, 31.43875516],
+    [36.37462155, 31.33283453],
+    [36.58440604, 31.22439135],
+    [36.79287551, 31.11344119],
+    [37., 31.],
+    [38.11, 30.32],
+    [38.89, 29.6],
+    [40.3, 29.56],
+    [136.89, 29.56],
+    [136.89, 29.56],
+    [137.66713566, 29.59021815],
+    [138.42646987, 29.75833873],
+    [139.1437307, 30.05898781],
+    [139.79599108, 30.48255523],
+    [140.36240169, 31.01550175],
+    [140.82485734, 31.64079188],
+    [141.16857576, 32.33843836],
+    [141.38257007, 33.08614111],
+    [141.46, 33.86],
+    [141.46, 35.86],
+    [141.46, 37.93],
+    [141.46, 49.51],
+    [141.46, 61.09],
+    [141.46, 77.2],
+    [141.46, 93.3],
+    [141.46, 107.3],
+    [141.46, 121.3],
+    [141.46, 129.8],
+    [141.46, 131.53],
+    [141.71, 133.48],
+    [140.58, 134.93],
+    [139.45, 136.38],
+    [137.06, 137.08],
+    [135.34, 137.93],
+    [135.34, 137.93],
+    [134.42, 140.1],
+    [131.96, 140.09],
+    [130., 140.09],
+    [40.15, 140.09],
+    [38.32, 140.09],
+    [36.49, 140.09],
+    [34.66, 140.09],
+    [34.66, 140.09],
+    [34.32771717, 140.08714929],
+    [33.99633797, 140.06249516],
+    [33.66729152, 140.01614394],
+    [33.34199689, 139.94829552],
+    [33.02185697, 139.85924251],
+    [32.70825243, 139.74936898],
+    [32.40253573, 139.61914876],
+    [32.10602534, 139.46914346],
+    [31.82, 139.3],
+    [29.49, 137.69],
+    [30.04, 135.],
+    [30.19, 132.6],
+    [30.36, 130.06],
+    [30.36, 130.06],
+    [29.80583632, 129.79909092],
+    [29.2929578, 129.46423787],
+    [28.8311692, 129.06184226],
+    [28.42929857, 128.59959673],
+    [28.09502849, 128.08633807],
+    [27.83474925, 127.53187829],
+    [27.65343662, 126.94681704],
+    [27.55455677, 126.34233899],
+    [27.54, 125.73],
+    [27.54, 38.23]])
+
+NIRISS_GR700XD_MASK_VERTS.flags.writeable = False
+NIRISS_GR700XD_MASK_CODES = (
+    Path.MOVETO,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.CURVE3,
+    Path.LINETO,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.LINETO,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.LINETO,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.CURVE4,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+    Path.LINETO,
+)
+
+NIRISS_GR700XD_MASK_PATH = Path(NIRISS_GR700XD_MASK_VERTS, NIRISS_GR700XD_MASK_CODES)
+
+#
+# NIRISS GR700XD grism mask dimensions
+#
+# Provenance:
+#
+# COM DEV drawing #206726
+# "GR700 (ZNSE) MASK RETAINER, ROTATED 270 DEG LLNL"
+# provided by Loic Albert (UdeM) 2016-11-04
+
+NIRISS_GR700XD_MASK_WIDTH, NIRISS_GR700XD_MASK_HEIGHT = 26.8 * u.mm, 26.0 * u.mm
